@@ -299,6 +299,7 @@ export default function NewExpenseRequest() {
     setIsDraft(draft);
 
     try {
+      const testEmployeeId = '4';
       const formData = new FormData();
       formData.append("category", category);
       formData.append("startDate", startDate);
@@ -306,13 +307,14 @@ export default function NewExpenseRequest() {
       formData.append("totalAmount", totalAmount.toFixed(2));
       formData.append("isDraft", String(draft));
       formData.append("lineItems", JSON.stringify(items));
+      formData.append("employeeId", testEmployeeId);
       attachments.forEach(file => formData.append("attachments", file));
 
       const res = await fetch("/api/expenses", { method: "POST", body: formData });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || `Server error (${res.status}). Please try again.`);
+        throw new Error(data.error || data.message || `Server error (${res.status}). Please try again.`);
       }
 
       addToast(draft ? "Draft saved successfully!" : "Request submitted for approval!", "success");
