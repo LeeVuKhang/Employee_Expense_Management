@@ -12,6 +12,7 @@ from app.schema.expense import ExpenseRequestCreate, ExpenseRequestRead, Expense
 from app.service.attachment_service import parse_attachments, store_attachments
 from app.service.expense_service import (
     cancel_expense_request,
+    create_expense_request,
     duplicate_expense_request,
     to_expense_read,
     update_expense_request,
