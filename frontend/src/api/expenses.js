@@ -25,6 +25,36 @@ export async function fetchExpenseRequest(expenseId) {
   return toExpenseViewModel(expense)
 }
 
+export async function createExpenseRequest(payload) {
+  const expense = await requestExpense(expenseApiRoutes.list, {
+    method: 'POST',
+    body: JSON.stringify(toExpenseApiPayload(payload, { includeStatus: true })),
+  })
+  return toExpenseViewModel(expense)
+}
+
+export async function updateExpenseRequest(expenseId, payload) {
+  const expense = await requestExpense(expenseApiRoutes.detail(expenseId), {
+    method: 'PUT',
+    body: JSON.stringify(toExpenseApiPayload(payload)),
+  })
+  return toExpenseViewModel(expense)
+}
+
+export async function cancelExpenseRequest(expenseId) {
+  const expense = await requestExpense(expenseApiRoutes.cancel(expenseId), {
+    method: 'PATCH',
+  })
+  return toExpenseViewModel(expense)
+}
+
+export async function duplicateExpenseRequest(expenseId) {
+  const expense = await requestExpense(expenseApiRoutes.duplicate(expenseId), {
+    method: 'POST',
+  })
+  return toExpenseViewModel(expense)
+}
+
 function toExpenseViewModel(expense) {
   return {
     id: String(expense.id),
@@ -58,4 +88,24 @@ function toExpenseViewModel(expense) {
 
 function toDateOnly(value) {
   return value?.slice(0, 10)
+}
+
+function toExpenseApiPayload(expense, options = {}) {
+  const payload = {
+    category_id: Number(expense.categoryId),
+    start_date: expense.tripStart,
+    end_date: expense.tripEnd,
+    line_items: expense.lineItems.map((lineItem) => ({
+      expense_date: lineItem.date,
+      item_service_name: lineItem.itemName,
+      purpose_note: lineItem.purpose,
+      amount: lineItem.amount,
+    })),
+  }
+
+  if (options.includeStatus) {
+    payload.status = expense.status
+  }
+
+  return payload
 }
