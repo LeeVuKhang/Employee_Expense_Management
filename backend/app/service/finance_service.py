@@ -1,6 +1,7 @@
 # app/service/finance_service.py
 from decimal import Decimal
 from sqlmodel import Session, select
+from fastapi import HTTPException, status
 
 from app.model.expense import ExpenseLineItem, ExpenseRequest, RequestStatus, ExpenseCategory
 from app.model.user import User
@@ -79,3 +80,63 @@ def get_finance_pending_requests(session: Session) -> FinancePendingListResponse
         summary=summary,
         requests=requests_list
     )
+
+def update_finance_request_status(
+    session: Session,
+    expense: ExpenseRequest,
+    new_status: RequestStatus,
+    rejection_reason: str | None = None,
+    actor_id: int | None = None,
+) -> ExpenseRequest:
+    """
+    Finance Officer updates request status with strict validation.
+    - Only 'Finance Approved', 'Paid', 'Rejected' are allowed.
+    - 'Paid' requires current status to be 'Finance Approved'.
+    - 'Rejected' requires rejection_reason.
+    """
+    from app.model.expense import RequestHistory
+    
+    # AC1: Validate target statuses
+    allowed_statuses = {
+        RequestStatus.FINANCE_APPROVED,
+        RequestStatus.PAID,
+        RequestStatus.REJECTED,
+    }
+    if new_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Finance can only set status to: {', '.join(s.value for s in allowed_statuses)}",
+        )
+    
+    # AC2: Enforce Paid → Finance Approved prerequisite
+    if new_status == RequestStatus.PAID:
+        if expense.status != RequestStatus.FINANCE_APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot mark as Paid. Current status is '{expense.status.value}'; must be 'Finance Approved'.",
+            )
+    
+    # AC3: Enforce rejection_reason on reject
+    if new_status == RequestStatus.REJECTED:
+        if not rejection_reason or not rejection_reason.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="rejection_reason is required when declining a request.",
+            )
+        expense.rejection_reason = rejection_reason.strip()
+    
+    expense.status = new_status
+    expense.is_locked = True  # Lock after Finance processes
+    
+    session.add(
+        RequestHistory(
+            expense_request_id=expense.id,
+            actor_id=actor_id,
+            action_taken=new_status.value,
+            comments=rejection_reason,
+        )
+    )
+    session.add(expense)
+    session.commit()
+    session.refresh(expense)
+    return expense

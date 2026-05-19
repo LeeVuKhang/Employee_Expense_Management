@@ -8,6 +8,9 @@ export default function RequestDetailPage() {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const apiBase = import.meta.env.VITE_API_URL || "";
@@ -173,8 +176,50 @@ export default function RequestDetailPage() {
             </Card>
 
             <Card title="Attachments" subtitle="Receipts and invoices for this request.">
-              <div style={{ border: "1px dashed #E5E7EB", borderRadius: 8, padding: "32px", textAlign: "center", color: "#6B7280", fontSize: 14, fontStyle: "italic" }}>
-                No attachments provided.
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {request.line_items && request.line_items.length > 0 ? (
+                  request.line_items.map((item) => (
+                    item.file_url ? (
+                      <a
+                        key={item.id}
+                        href={item.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "12px",
+                          backgroundColor: "#F9FAFB",
+                          borderRadius: 8,
+                          border: "1px solid #E5E7EB",
+                          textDecoration: "none",
+                          color: "#2563EB",
+                          fontWeight: 500,
+                          fontSize: 14,
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#EFF6FF";
+                          e.currentTarget.style.borderColor = "#93C5FD";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#F9FAFB";
+                          e.currentTarget.style.borderColor = "#E5E7EB";
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        </svg>
+                        {item.file_name || "Download Receipt"}
+                      </a>
+                    ) : null
+                  ))
+                ) : (
+                  <div style={{ border: "1px dashed #E5E7EB", borderRadius: 8, padding: "32px", textAlign: "center", color: "#6B7280", fontSize: 14, fontStyle: "italic" }}>
+                    No attachments provided.
+                  </div>
+                )}
               </div>
             </Card>
           </div>
@@ -183,22 +228,98 @@ export default function RequestDetailPage() {
           <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column" }}>
             <Card title="Actions">
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <button style={{ 
-                  width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: "pointer",
-                  backgroundColor: "#10B981", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8
-                }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                  Finance Approve
-                </button>
-                <button style={{ 
-                  width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: "pointer",
-                  backgroundColor: "#EF4444", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8
-                }}>
+                {request.status !== "Finance Approved" && (
+                  <button
+                    onClick={async () => {
+                      setSubmitting(true);
+                      setError(null);
+                      try {
+                        const apiBase = import.meta.env.VITE_API_URL || "";
+                        const res = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
+                          method: "PATCH",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "X-User-Id": "2"
+                          },
+                          body: JSON.stringify({ status: "Finance Approved", rejection_reason: null })
+                        });
+                        if (!res.ok) {
+                          const errData = await res.json();
+                          throw new Error(errData.detail || "Failed to approve request");
+                        }
+                        const updated = await res.json();
+                        setRequest(prev => ({ ...prev, status: updated.status }));
+                      } catch (err) {
+                        setError(err.message);
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={submitting}
+                    style={{
+                      width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer",
+                      backgroundColor: "#10B981", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      opacity: submitting ? 0.6 : 1
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    Finance Approve
+                  </button>
+                )}
+                {request.status === "Finance Approved" && (
+                  <button
+                    onClick={async () => {
+                      setSubmitting(true);
+                      setError(null);
+                      try {
+                        const apiBase = import.meta.env.VITE_API_URL || "";
+                        const res = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
+                          method: "PATCH",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "X-User-Id": "2"
+                          },
+                          body: JSON.stringify({ status: "Paid", rejection_reason: null })
+                        });
+                        if (!res.ok) {
+                          const errData = await res.json();
+                          throw new Error(errData.detail || "Failed to mark request as paid");
+                        }
+                        const updated = await res.json();
+                        setRequest(prev => ({ ...prev, status: updated.status }));
+                      } catch (err) {
+                        setError(err.message);
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={submitting}
+                    style={{
+                      width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer",
+                      backgroundColor: "#2563EB", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      opacity: submitting ? 0.6 : 1
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    Mark as Paid
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowDeclineModal(true)}
+                  style={{ 
+                    width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: "pointer",
+                    backgroundColor: "#EF4444", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+                  }}
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="15" y1="9" x2="9" y2="15"></line>
@@ -234,6 +355,124 @@ export default function RequestDetailPage() {
           </div>
         </div>
       </main>
+
+      {showDeclineModal && (
+        <div
+          onClick={() => setShowDeclineModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 300,
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 16,
+              padding: 32,
+              maxWidth: 480,
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 12px 0", fontSize: 20, fontWeight: 800, color: "#111827" }}>
+              Decline Request
+            </h2>
+            <p style={{ margin: "0 0 24px 0", fontSize: 14, color: "#6B7280" }}>
+              Please provide a reason for declining this expense request.
+            </p>
+            <textarea
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="Enter rejection reason..."
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 8,
+                border: "1px solid #E5E7EB",
+                fontSize: 14,
+                fontFamily: "inherit",
+                resize: "vertical",
+                minHeight: 100,
+                marginBottom: 24,
+              }}
+            />
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowDeclineModal(false);
+                  setDeclineReason("");
+                }}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 8,
+                  border: "1px solid #E5E7EB",
+                  backgroundColor: "#FFFFFF",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#374151",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!declineReason.trim()) {
+                    setError("Rejection reason is required.");
+                    return;
+                  }
+                  setSubmitting(true);
+                  setError(null);
+                  try {
+                    const apiBase = import.meta.env.VITE_API_URL || "";
+                    const res = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
+                      method: "PATCH",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "X-User-Id": "2"
+                      },
+                      body: JSON.stringify({ status: "Rejected", rejection_reason: declineReason })
+                    });
+                    if (!res.ok) {
+                      const errData = await res.json();
+                      throw new Error(errData.detail || "Failed to decline request");
+                    }
+                    const updated = await res.json();
+                    setRequest(prev => ({ ...prev, status: updated.status, rejection_reason: updated.rejection_reason }));
+                    setShowDeclineModal(false);
+                    setDeclineReason("");
+                  } catch (err) {
+                    setError(err.message);
+                  } finally {
+                    setSubmitting(false);
+                  }
+                }}
+                disabled={submitting || !declineReason.trim()}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 8,
+                  border: "none",
+                  backgroundColor: "#EF4444",
+                  color: "#FFFFFF",
+                  cursor: declineReason.trim() && !submitting ? "pointer" : "not-allowed",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  opacity: declineReason.trim() && !submitting ? 1 : 0.6,
+                }}
+              >
+                {submitting ? "Declining..." : "Confirm Decline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

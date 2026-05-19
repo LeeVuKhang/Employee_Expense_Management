@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import model_validator, Field
 
 from app.controller import api_router
 from app.core.config import settings
-
+from app.schema.finance import FinanceStatusUpdateRequest
 
 def create_app() -> FastAPI:
     app = FastAPI(

@@ -4,7 +4,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from app.model.expense import RequestStatus
 from app.schema.expense import ExpenseLineItemRead
@@ -42,3 +42,21 @@ class FinancePendingListResponse(BaseModel):
 
     summary: FinancePendingSummary
     requests: list[FinanceExpenseRequestRead]
+
+
+class FinanceStatusUpdateRequest(BaseModel):
+    """Request payload for Finance Officer to approve/reject/pay an expense."""
+    
+    status: RequestStatus = Field(..., description="Target status: 'Finance Approved', 'Paid', or 'Rejected'")
+    rejection_reason: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=1000,
+        description="Mandatory explanation if status is 'Rejected'"
+    )
+    
+    @model_validator(mode="after")
+    def validate_rejection_reason(self) -> "FinanceStatusUpdateRequest":
+        if self.status == RequestStatus.REJECTED and not self.rejection_reason:
+            raise ValueError("rejection_reason is required when status is 'Rejected'.")
+        return self
