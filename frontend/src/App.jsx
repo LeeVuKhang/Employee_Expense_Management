@@ -1,105 +1,44 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { fetchExpenseRequest } from './api/expenses'
 import CancelRequestModal from './components/requests/CancelRequestModal'
 import RequestActions from './components/requests/RequestActions'
+import { expenseRoutes, legacyRequestRoutes } from './routes'
 import './App.css'
 
 const EDITABLE_REQUEST_ACTION_STATUSES = new Set(['Draft', 'Pending Manager'])
 const params = new URLSearchParams(window.location.search)
-const INITIAL_REQUEST_ID =
-  params.get('id') ?? localStorage.getItem('requestId') ?? 'REQ-001'
-
-const mockRequests = [
-  {
-    id: 'REQ-001',
-    employee: 'Alice Smith',
-    submittedOn: '2026-05-13',
-    category: 'Travel',
-    categoryId: 'travel',
-    tripStart: '2026-05-10',
-    tripEnd: '2026-05-12',
-    status: 'Pending Manager',
-    processor: 'Manager',
-    attachments: [],
-    lineItems: [
-      {
-        id: 'LI-001',
-        date: '2026-05-10',
-        itemName: 'Flight',
-        purpose: 'Client meeting',
-        amount: 300,
-      },
-      {
-        id: 'LI-002',
-        date: '2026-05-11',
-        itemName: 'Hotel',
-        purpose: 'Stay',
-        amount: 150,
-      },
-    ],
-    timeline: [{ label: 'Submitted', date: '2026-05-13' }],
-  },
-  {
-    id: 'REQ-002',
-    employee: 'Alice Smith',
-    submittedOn: '2026-04-28',
-    category: 'Meals',
-    categoryId: 'meals',
-    tripStart: '2026-04-25',
-    tripEnd: '2026-04-25',
-    status: 'Approved',
-    processor: 'Finance',
-    attachments: [{ id: 'ATT-001', fileName: 'client-dinner-receipt.pdf' }],
-    lineItems: [
-      {
-        id: 'LI-003',
-        date: '2026-04-25',
-        itemName: 'Client dinner',
-        purpose: 'Project kickoff',
-        amount: 86.4,
-      },
-    ],
-    timeline: [
-      { label: 'Submitted', date: '2026-04-28' },
-      { label: 'Manager approved', date: '2026-04-29' },
-      { label: 'Finance approved', date: '2026-05-01' },
-    ],
-  },
-  {
-    id: 'REQ-003',
-    employee: 'Alice Smith',
-    submittedOn: '2026-05-18',
-    category: 'Office Supplies',
-    categoryId: 'office-supplies',
-    tripStart: '2026-05-18',
-    tripEnd: '2026-05-18',
-    status: 'Draft',
-    processor: 'Employee',
-    attachments: [],
-    lineItems: [
-      {
-        id: 'LI-004',
-        date: '2026-05-18',
-        itemName: 'Monitor stand',
-        purpose: 'Home office setup',
-        amount: 42.99,
-      },
-    ],
-    timeline: [{ label: 'Draft created', date: '2026-05-18' }],
-  },
-]
+const INITIAL_REQUEST_ID = normalizeInitialRequestId(
+  params.get('id') ?? localStorage.getItem('requestId') ?? '1',
+)
 
 function App() {
-  const [requests, setRequests] = useState(mockRequests)
+  const [requests, setRequests] = useState([])
 
   return (
     <Routes>
       <Route
         path="/"
-        element={<Navigate to={`/requests/${INITIAL_REQUEST_ID}`} replace />}
+        element={<Navigate to={expenseRoutes.detail(INITIAL_REQUEST_ID)} replace />}
       />
       <Route
-        path="/requests/:requestId"
+        path={expenseRoutes.list}
+        element={<Navigate to={expenseRoutes.detail(INITIAL_REQUEST_ID)} replace />}
+      />
+      <Route
+        path={legacyRequestRoutes.detail()}
+        element={<LegacyRequestRedirect />}
+      />
+      <Route
+        path={legacyRequestRoutes.edit()}
+        element={<LegacyRequestRedirect routeMode="edit" />}
+      />
+      <Route
+        path={legacyRequestRoutes.duplicate()}
+        element={<LegacyRequestRedirect routeMode="duplicate" />}
+      />
+      <Route
+        path={expenseRoutes.detail()}
         element={
           <ExpenseRequestWorkspace
             requests={requests}
@@ -108,7 +47,7 @@ function App() {
         }
       />
       <Route
-        path="/requests/:requestId/edit"
+        path={expenseRoutes.edit()}
         element={
           <ExpenseRequestWorkspace
             requests={requests}
@@ -118,7 +57,7 @@ function App() {
         }
       />
       <Route
-        path="/requests/:requestId/duplicate"
+        path={expenseRoutes.duplicate()}
         element={
           <ExpenseRequestWorkspace
             requests={requests}
@@ -131,14 +70,55 @@ function App() {
   )
 }
 
+function LegacyRequestRedirect({ routeMode = 'detail' }) {
+  const { requestId } = useParams()
+  const route =
+    routeMode === 'edit'
+      ? expenseRoutes.edit(requestId)
+      : routeMode === 'duplicate'
+        ? expenseRoutes.duplicate(requestId)
+        : expenseRoutes.detail(requestId)
+
+  return <Navigate to={route} replace />
+}
+
 function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }) {
   const { requestId } = useParams()
   const navigate = useNavigate()
+  const [requestError, setRequestError] = useState(null)
   const selectedRequest =
-    requests.find((request) => request.id === requestId) ?? null
+    requests.find((request) => String(request.id) === String(requestId)) ?? null
   const [cancelRequestId, setCancelRequestId] = useState(null)
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
+
+  useEffect(() => {
+    let isCurrent = true
+
+    if (selectedRequest) {
+      return undefined
+    }
+
+    fetchExpenseRequest(requestId)
+      .then((expense) => {
+        if (!isCurrent) return
+
+        setRequests((currentRequests) => [
+          expense,
+          ...currentRequests.filter(
+            (request) => String(request.id) !== String(expense.id),
+          ),
+        ])
+      })
+      .catch((error) => {
+        if (!isCurrent) return
+        setRequestError({ requestId, message: error.message })
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [requestId, selectedRequest, setRequests])
 
   function showToast(type, message) {
     setToast({ type, message })
@@ -147,7 +127,7 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
   }
 
   if (routeMode === 'edit' && selectedRequest && !canManageRequestActions(selectedRequest.status)) {
-    return <Navigate to={`/requests/${selectedRequest.id}`} replace />
+    return <Navigate to={expenseRoutes.detail(selectedRequest.id)} replace />
   }
 
   function startEditRequest(request) {
@@ -155,11 +135,11 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
       showToast('error', 'This request is locked and can no longer be edited.')
       return
     }
-    navigate(`/requests/${request.id}/edit`)
+    navigate(expenseRoutes.edit(request.id))
   }
 
   function startDuplicateRequest(request) {
-    navigate(`/requests/${request.id}/duplicate`)
+    navigate(expenseRoutes.duplicate(request.id))
     showToast('success', `${request.id} was duplicated into a new draft.`)
   }
 
@@ -186,7 +166,7 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
             : request,
         ),
       )
-      navigate(`/requests/${requestId}`)
+      navigate(expenseRoutes.detail(requestId))
       showToast('success', 'Request updated successfully.')
       return
     }
@@ -211,7 +191,7 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
     }
 
     setRequests((currentRequests) => [newRequest, ...currentRequests])
-    navigate(`/requests/${newRequest.id}`)
+    navigate(expenseRoutes.detail(newRequest.id))
     showToast(
       'success',
       routeMode === 'duplicate'
@@ -248,6 +228,10 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
     showToast('success', 'Request cancelled successfully.')
   }
 
+  const currentRequestError =
+    requestError?.requestId === requestId ? requestError.message : null
+  const isLoadingRequest = !selectedRequest && !currentRequestError
+
   return (
     <div className="app-shell">
       <main className="page-frame">
@@ -257,9 +241,15 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
           </div>
         )}
 
-        {!selectedRequest && (
+        {isLoadingRequest && (
+          <div className="card feedback-card" role="status">
+            Loading expense request...
+          </div>
+        )}
+
+        {!isLoadingRequest && !selectedRequest && (
           <div className="card feedback-card error-state" role="alert">
-            Request not found.
+            {currentRequestError ?? 'Expense request not found.'}
           </div>
         )}
 
@@ -280,7 +270,7 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
               selectedRequest ? copyRequestToForm(selectedRequest) : createEmptyForm()
             }
             mode={routeMode}
-            onCancel={() => navigate(`/requests/${requestId}`)}
+            onCancel={() => navigate(expenseRoutes.detail(requestId))}
             onSaveDraft={saveRequest}
             onSubmit={saveRequest}
           />
@@ -738,11 +728,15 @@ function normalizeForm(form) {
 function nextRequestId(requests) {
   const nextId =
     Math.max(
-      ...requests.map((request) => Number(request.id.replace('REQ-', ''))),
+      ...requests.map((request) => Number(String(request.id).replace('REQ-', ''))),
       0,
     ) + 1
 
-  return `REQ-${String(nextId).padStart(3, '0')}`
+  return String(nextId)
+}
+
+function normalizeInitialRequestId(requestId) {
+  return /^\d+$/.test(requestId) ? requestId : '1'
 }
 
 function todayISO() {
