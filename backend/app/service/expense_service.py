@@ -185,10 +185,11 @@ def duplicate_expense_request(
 
 
 def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
-    category = session.get(ExpenseCategory, expense.category_id)
     return {
         **expense.model_dump(),
-        "category_name": category.name if category else None,
+        "employee_name": _get_user_name(session, expense.employee_id),
+        "category_name": _get_category_name(session, expense.category_id),
+        "current_processor_name": _get_user_name(session, expense.current_processor_id),
         "line_items": [
             line_item.model_dump()
             for line_item in _get_line_items(session, expense.id)

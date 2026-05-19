@@ -10,7 +10,7 @@ export default function RequestActions({
   onDuplicate,
   onCancel,
 }) {
-  const canManage = canManageRequestActions(request.status)
+  const canManage = canManageRequestActions(request.status) && !request.isLocked
 
   return (
     <div className="card actions-card">
@@ -26,18 +26,18 @@ export default function RequestActions({
             Edit Request
           </button>
           <button
-            className="secondary-button"
-            type="button"
-            onClick={() => onDuplicate(request)}
-          >
-            Duplicate Request
-          </button>
-          <button
             className="danger-button"
             type="button"
             onClick={() => onCancel(request)}
           >
             Cancel Request
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => onDuplicate(request)}
+          >
+            Duplicate Request
           </button>
         </>
       ) : (

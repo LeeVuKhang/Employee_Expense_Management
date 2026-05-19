@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { updateExpenseRequest } from "../api/expenses";
 import Navbar from "../components/layouts/Navbar";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -6,7 +7,13 @@ const MAX_FILES = 3;
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ALLOWED_MIME = ["image/svg+xml", "image/png", "image/jpeg", "application/pdf"];
-const CATEGORIES = ["Travel", "Meals", "Accommodation", "Equipment", "Software", "Marketing", "Other"];
+const FALLBACK_CATEGORIES = [
+  { id: 1, name: "Travel" },
+  { id: 3, name: "Meals" },
+  { id: 2, name: "Accommodation" },
+  { id: 4, name: "Office Supplies" },
+  { id: 5, name: "Training" },
+];
 const today = () => new Date().toISOString().split("T")[0];
 
 // ─── Toast System ─────────────────────────────────────────────────────────────
@@ -177,14 +184,53 @@ function SuccessScreen({ category, totalAmount, isDraft, onReset }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function NewExpenseRequest({ onNavigate }) {
+function emptyLineItem() {
+  return { date: "", name: "", amount: "", note: "" };
+}
+
+function requestToFormState(request) {
+  if (!request) {
+    return {
+      category: FALLBACK_CATEGORIES[0].name,
+      categoryId: FALLBACK_CATEGORIES[0].id,
+      startDate: "",
+      endDate: "",
+      items: [emptyLineItem()],
+    };
+  }
+
+  return {
+    category: request.category,
+    categoryId: request.categoryId,
+    startDate: request.tripStart ?? request.tripDateFrom ?? "",
+    endDate: request.tripEnd ?? request.tripDateTo ?? "",
+    items: request.lineItems?.length
+      ? request.lineItems.map((lineItem) => ({
+          date: lineItem.date,
+          name: lineItem.itemName,
+          amount: String(lineItem.amount ?? ""),
+          note: lineItem.purpose,
+        }))
+      : [emptyLineItem()],
+  };
+}
+
+function categoryIdForName(categories, categoryName, fallbackId) {
+  return categories.find((option) => option.name === categoryName)?.id ?? fallbackId;
+}
+
+export default function NewExpenseRequest({ initialRequest = null, mode = "create", onNavigate, onSaved }) {
   const { toasts, add: addToast, remove: removeToast } = useToast();
+  const isEditMode = Boolean(mode === "edit" && initialRequest);
+  const initialForm = requestToFormState(initialRequest);
 
   // Form state
-  const [category, setCategory] = useState("Travel");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [items, setItems] = useState([{ date: "", name: "", amount: "", note: "" }]);
+  const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
+  const [category, setCategory] = useState(initialForm.category);
+  const [categoryId, setCategoryId] = useState(initialForm.categoryId);
+  const [startDate, setStartDate] = useState(initialForm.startDate);
+  const [endDate, setEndDate] = useState(initialForm.endDate);
+  const [items, setItems] = useState(initialForm.items);
   const [attachments, setAttachments] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [fileErrors, setFileErrors] = useState([]);
@@ -196,6 +242,27 @@ export default function NewExpenseRequest({ onNavigate }) {
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isDraft, setIsDraft] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadCategories() {
+      try {
+        const response = await fetch("/api/expense-categories");
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!ignore && Array.isArray(data) && data.length > 0) {
+          setCategories(data);
+        }
+      } catch {
+        // Keep fallback categories when the category endpoint is unavailable.
+      }
+    }
+
+    loadCategories();
+    return () => { ignore = true; };
+  }, []);
 
   // Reactive total amount (FE-3)
   const totalAmount = items.reduce((sum, it) => sum + (parseFloat(it.amount) || 0), 0);
@@ -240,7 +307,7 @@ export default function NewExpenseRequest({ onNavigate }) {
     });
   };
 
-  const addItem = () => setItems(prev => [...prev, { date: "", name: "", amount: "", note: "" }]);
+  const addItem = () => setItems(prev => [...prev, emptyLineItem()]);
 
   const removeItem = (index) => {
     setItems(prev => prev.filter((_, i) => i !== index));
@@ -300,9 +367,34 @@ export default function NewExpenseRequest({ onNavigate }) {
     setIsDraft(draft);
 
     try {
+      const resolvedCategoryId = categoryIdForName(categories, category, categoryId);
+
+      if (isEditMode) {
+        if (!resolvedCategoryId) {
+          throw new Error("Please choose a valid expense category.");
+        }
+
+        const updatedRequest = await updateExpenseRequest(initialRequest.id, {
+          categoryId: resolvedCategoryId,
+          tripStart: startDate,
+          tripEnd: endDate,
+          lineItems: items.map((item) => ({
+            date: item.date,
+            itemName: item.name,
+            amount: Number(item.amount),
+            purpose: item.note || "No note provided",
+          })),
+        });
+
+        addToast("Request updated successfully!", "success");
+        setTimeout(() => onSaved?.(updatedRequest), 800);
+        return;
+      }
+
       const testEmployeeId = '4';
       const formData = new FormData();
       formData.append("category", category);
+      if (resolvedCategoryId) formData.append("categoryId", String(resolvedCategoryId));
       formData.append("startDate", startDate);
       formData.append("endDate", endDate);
       formData.append("totalAmount", totalAmount.toFixed(2));
@@ -330,10 +422,12 @@ export default function NewExpenseRequest({ onNavigate }) {
   }
 
   function handleReset() {
+    const nextForm = requestToFormState(null);
     setSubmitted(false);
-    setCategory("Travel");
-    setStartDate(""); setEndDate("");
-    setItems([{ date: "", name: "", amount: "", note: "" }]);
+    setCategory(nextForm.category);
+    setCategoryId(nextForm.categoryId);
+    setStartDate(nextForm.startDate); setEndDate(nextForm.endDate);
+    setItems(nextForm.items);
     setAttachments([]); setFileErrors([]);
     setFormErrors({}); setItemErrors([]);
     setIsDraft(false);
@@ -350,6 +444,9 @@ export default function NewExpenseRequest({ onNavigate }) {
   }
 
   const isAnyLoading = loading || loadingDraft;
+  const categoryOptions = categories.some((option) => option.name === category)
+    ? categories
+    : [{ id: categoryId, name: category }, ...categories];
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -368,8 +465,12 @@ export default function NewExpenseRequest({ onNavigate }) {
             ←
           </button>
           <div>
-            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "#0f172a" }}>New Expense Request</h1>
-            <p style={{ margin: 0, fontSize: "13px", color: "#64748b", marginTop: 2 }}>Fill out the details below to submit a reimbursement.</p>
+            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "#0f172a" }}>
+              {isEditMode ? `Edit Expense Request #${initialRequest.id}` : "New Expense Request"}
+            </h1>
+            <p style={{ margin: 0, fontSize: "13px", color: "#64748b", marginTop: 2 }}>
+              {isEditMode ? "Update this Draft or Pending Manager request." : "Fill out the details below to submit a reimbursement."}
+            </p>
           </div>
         </div>
       </div>
@@ -387,13 +488,18 @@ export default function NewExpenseRequest({ onNavigate }) {
 
             <div style={{ marginBottom: 18 }}>
               <label style={labelStyle}>Expense Category</label>
-              <select value={category} onChange={e => setCategory(e.target.value)}
+              <select
+                value={category}
+                onChange={e => {
+                  setCategory(e.target.value);
+                  setCategoryId(categoryIdForName(categoryOptions, e.target.value, categoryId));
+                }}
                 style={{
                   ...baseInput, appearance: "none",
                   backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23374151' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E\")",
                   backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", paddingRight: 40,
                 }}>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                {categoryOptions.map(c => <option key={c.id ?? c.name} value={c.name}>{c.name}</option>)}
               </select>
             </div>
 
@@ -535,30 +641,31 @@ export default function NewExpenseRequest({ onNavigate }) {
               onMouseLeave={e => { if (!isAnyLoading) e.currentTarget.style.background = loading ? "#93c5fd" : "#2563eb"; }}
             >
               {loading && <Spinner />}
-              {loading ? "Submitting..." : "Submit Request"}
+              {loading ? (isEditMode ? "Saving..." : "Submitting...") : (isEditMode ? "Save Changes" : "Submit Request")}
             </button>
 
-            {/* Save as Draft (FE-5) */}
-            <button
-              onClick={() => handleSubmit(true)}
-              disabled={isAnyLoading}
-              style={{
-                width: "100%", background: "#fff", color: "#374151",
-                border: "1.5px solid #e2e8f0", borderRadius: "10px", padding: "13px",
-                fontSize: "15px", fontWeight: 600, cursor: isAnyLoading ? "not-allowed" : "pointer",
-                marginTop: 10, transition: "background 0.2s",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                opacity: isAnyLoading ? 0.6 : 1,
-              }}
-              onMouseEnter={e => { if (!isAnyLoading) e.currentTarget.style.background = "#f8f9fc"; }}
-              onMouseLeave={e => { if (!isAnyLoading) e.currentTarget.style.background = "#fff"; }}
-            >
-              {loadingDraft && <Spinner dark />}
-              {loadingDraft ? "Saving..." : "Save as Draft"}
-            </button>
+            {!isEditMode && (
+              <button
+                onClick={() => handleSubmit(true)}
+                disabled={isAnyLoading}
+                style={{
+                  width: "100%", background: "#fff", color: "#374151",
+                  border: "1.5px solid #e2e8f0", borderRadius: "10px", padding: "13px",
+                  fontSize: "15px", fontWeight: 600, cursor: isAnyLoading ? "not-allowed" : "pointer",
+                  marginTop: 10, transition: "background 0.2s",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  opacity: isAnyLoading ? 0.6 : 1,
+                }}
+                onMouseEnter={e => { if (!isAnyLoading) e.currentTarget.style.background = "#f8f9fc"; }}
+                onMouseLeave={e => { if (!isAnyLoading) e.currentTarget.style.background = "#fff"; }}
+              >
+                {loadingDraft && <Spinner dark />}
+                {loadingDraft ? "Saving..." : "Save as Draft"}
+              </button>
+            )}
 
             <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>
-              "Submit" sends for approval · "Draft" saves for later
+              {isEditMode ? "Only Draft and Pending Manager requests can be edited." : "\"Submit\" sends for approval - \"Draft\" saves for later"}
             </p>
           </div>
         </div>

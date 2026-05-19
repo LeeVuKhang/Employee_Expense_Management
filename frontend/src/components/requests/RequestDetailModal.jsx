@@ -1,22 +1,28 @@
-// components/requests/RequestDetailModal.jsx
-// Modal hiển thị chi tiết một request khi click vào card
-
+import RequestActions from "./RequestActions";
 import StatusBadge from "./StatusBadge";
 
-export default function RequestDetailModal({ request, onClose }) {
+export default function RequestDetailModal({
+  request,
+  onCancelRequest,
+  onClose,
+  onDuplicate,
+  onEdit,
+}) {
   if (!request) return null;
 
-  const sameDay = request.tripDateFrom === request.tripDateTo;
-  const dateRange = sameDay
-    ? request.tripDateFrom
-    : `${request.tripDateFrom} → ${request.tripDateTo}`;
+  const tripStart = request.tripDateFrom ?? request.tripStart;
+  const tripEnd = request.tripDateTo ?? request.tripEnd;
+  const sameDay = tripStart === tripEnd;
+  const dateRange = sameDay ? tripStart : `${tripStart} -> ${tripEnd}`;
+  const amount = Number(request.amount ?? 0);
 
   const rows = [
     ["Description", request.description],
-    ["Amount", `$${request.amount.toFixed(2)}`],
-    ["Submitted", request.submittedDate],
+    ["Amount", `$${amount.toFixed(2)}`],
+    ["Submitted", request.submittedDate ?? request.submittedOn],
     ["Trip Dates", dateRange],
     ["Category", request.category],
+    ["Processor", request.processor],
   ];
 
   return (
@@ -40,13 +46,14 @@ export default function RequestDetailModal({ request, onClose }) {
           backgroundColor: "#FFFFFF",
           borderRadius: 16,
           padding: 32,
-          maxWidth: 480,
+          maxHeight: "calc(100vh - 48px)",
+          maxWidth: 560,
+          overflowY: "auto",
           width: "100%",
           boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
           animation: "slideUp 0.2s ease",
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -65,7 +72,7 @@ export default function RequestDetailModal({ request, onClose }) {
                 fontFamily: "'DM Mono', monospace",
               }}
             >
-              {request.id}
+              #{request.id}
             </h2>
             <p style={{ margin: "4px 0 0", color: "#6B7280", fontSize: 13 }}>
               {request.category}
@@ -89,11 +96,10 @@ export default function RequestDetailModal({ request, onClose }) {
             }}
             aria-label="Close"
           >
-            ×
+            x
           </button>
         </div>
 
-        {/* Detail rows */}
         {rows.map(([label, val]) => (
           <div
             key={label}
@@ -118,14 +124,58 @@ export default function RequestDetailModal({ request, onClose }) {
                 wordBreak: "break-word",
               }}
             >
-              {val}
+              {val || "-"}
             </span>
           </div>
         ))}
 
-        {/* Status badge */}
+        {request.lineItems?.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: 14, color: "#111827" }}>
+              Line Items
+            </h3>
+            <div style={{ display: "grid", gap: 8 }}>
+              {request.lineItems.map((lineItem) => (
+                <div
+                  key={lineItem.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 12,
+                    padding: 12,
+                    border: "1px solid #E5E7EB",
+                    borderRadius: 8,
+                    background: "#F9FAFB",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: "#111827", fontSize: 13, fontWeight: 700 }}>
+                      {lineItem.itemName}
+                    </div>
+                    <div style={{ color: "#6B7280", fontSize: 12 }}>
+                      {lineItem.date} - {lineItem.purpose}
+                    </div>
+                  </div>
+                  <strong style={{ color: "#111827", fontSize: 13 }}>
+                    ${Number(lineItem.amount ?? 0).toFixed(2)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
           <StatusBadge status={request.status} />
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <RequestActions
+            request={request}
+            onCancel={onCancelRequest}
+            onDuplicate={onDuplicate}
+            onEdit={onEdit}
+          />
         </div>
       </div>
 

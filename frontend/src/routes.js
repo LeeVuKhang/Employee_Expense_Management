@@ -12,6 +12,7 @@ export const legacyRequestRoutes = {
 }
 
 export const expenseApiRoutes = {
+  list: '/api/expenses',
   detail: (expenseId) => `/api/expenses/${expenseId}`,
   cancel: (expenseId) => `/api/expenses/${expenseId}/cancel`,
   duplicate: (expenseId) => `/api/expenses/${expenseId}/duplicate`,
