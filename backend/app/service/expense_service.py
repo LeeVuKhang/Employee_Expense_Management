@@ -3,7 +3,14 @@ from decimal import Decimal
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.model.expense import ExpenseLineItem, ExpenseRequest, RequestHistory, RequestStatus
+from app.model.expense import (
+    ExpenseCategory,
+    ExpenseLineItem,
+    ExpenseRequest,
+    RequestHistory,
+    RequestStatus,
+)
+from app.model.user import User
 from app.schema.expense import ExpenseLineItemCreate, ExpenseRequestCreate, ExpenseRequestUpdate
 
 
@@ -32,6 +39,19 @@ def _line_items_total(line_items: list[ExpenseLineItemCreate]) -> Decimal:
 def _get_line_items(session: Session, expense_id: int) -> list[ExpenseLineItem]:
     statement = select(ExpenseLineItem).where(ExpenseLineItem.expense_request_id == expense_id)
     return list(session.exec(statement).all())
+
+
+def _get_category_name(session: Session, category_id: int) -> str | None:
+    statement = select(ExpenseCategory.name).where(ExpenseCategory.id == category_id)
+    return session.exec(statement).first()
+
+
+def _get_user_name(session: Session, user_id: int | None) -> str | None:
+    if user_id is None:
+        return None
+
+    statement = select(User.full_name).where(User.id == user_id)
+    return session.exec(statement).first()
 
 
 def create_expense_request(
@@ -167,5 +187,8 @@ def duplicate_expense_request(
 def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
     return {
         **expense.model_dump(),
+        "employee_name": _get_user_name(session, expense.employee_id),
+        "category_name": _get_category_name(session, expense.category_id),
+        "current_processor_name": _get_user_name(session, expense.current_processor_id),
         "line_items": [line_item.model_dump() for line_item in _get_line_items(session, expense.id)],
     }

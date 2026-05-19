@@ -1,41 +1,20 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.core.database import get_session
 from app.middleware import get_current_user_id, require_expense_owner
 from app.model.expense import ExpenseRequest
-from app.schema.expense import ExpenseRequestCreate, ExpenseRequestRead, ExpenseRequestUpdate
+from app.schema.expense import ExpenseRequestRead, ExpenseRequestUpdate
 from app.service.expense_service import (
     cancel_expense_request,
-    create_expense_request,
     duplicate_expense_request,
     to_expense_read,
     update_expense_request,
 )
 
 router = APIRouter()
-
-
-@router.get("", response_model=list[ExpenseRequestRead])
-def list_my_expense_requests(
-    session: Annotated[Session, Depends(get_session)],
-    current_user_id: Annotated[int, Depends(get_current_user_id)],
-) -> list[dict]:
-    statement = select(ExpenseRequest).where(ExpenseRequest.employee_id == current_user_id)
-    expenses = session.exec(statement).all()
-    return [to_expense_read(expense, session) for expense in expenses]
-
-
-@router.post("", response_model=ExpenseRequestRead, status_code=status.HTTP_201_CREATED)
-def create_my_expense_request(
-    payload: ExpenseRequestCreate,
-    session: Annotated[Session, Depends(get_session)],
-    current_user_id: Annotated[int, Depends(get_current_user_id)],
-) -> dict:
-    expense = create_expense_request(session, current_user_id, payload)
-    return to_expense_read(expense, session)
 
 
 @router.get("/{expense_id}", response_model=ExpenseRequestRead)

@@ -25,8 +25,6 @@ Requests that act on employee-owned expenses expect an `X-User-Id` header.
 ## Implemented APIs
 
 - `GET /health`
-- `GET /api/expenses`
-- `POST /api/expenses`
 - `GET /api/expenses/{expense_id}`
 - `PUT /api/expenses/{expense_id}`
 - `PATCH /api/expenses/{expense_id}/cancel`
