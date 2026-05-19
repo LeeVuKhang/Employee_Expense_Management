@@ -1,0 +1,27 @@
+[project]
+name = "employee-expense-management-backend"
+version = "0.1.0"
+description = "FastAPI backend for employee expense management"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.34,<2.0",
+    "fastapi>=0.115,<1.0",
+    "python-multipart>=0.0.12,<1.0",
+    "python-dotenv>=1.0,<2.0",
+    "uvicorn[standard]>=0.30,<1.0",
+    "supabase>=2.30.0",
+    "pydantic-settings>=2.14.1",
+    "sqlmodel>=0.0.38",
+    "psycopg[binary]>=3.3.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.7,<1.0",
+]
+
+[project.scripts]
+dev = "app.cli:dev"
+
+[tool.ruff]
+line-length = 100
