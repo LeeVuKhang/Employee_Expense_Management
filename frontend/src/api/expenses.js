@@ -1,67 +1,8 @@
 import { expenseApiRoutes, managerApiRoutes } from '../routes'
 
-const CURRENT_USER_ID = import.meta.env.VITE_CURRENT_USER_ID ?? '4'
+const CURRENT_USER_ID = import.meta.env.VITE_CURRENT_USER_ID ?? '3'
+const MANAGER_DASHBOARD_USER_ID = '3'
 const PENDING_MANAGER_STATUS = 'Pending Manager'
-const FALLBACK_MANAGER_PENDING_REQUESTS = [
-  {
-    id: 1042,
-    employee_id: 12,
-    employee_name: 'Maya Tran',
-    manager_id: 4,
-    category_name: 'Travel',
-    request_type: 'Travel',
-    total_amount: 1280.75,
-    status: PENDING_MANAGER_STATUS,
-    current_processor_id: 4,
-    created_at: '2026-05-18T09:20:00Z',
-  },
-  {
-    id: 1041,
-    employee_id: 15,
-    employee_name: 'Daniel Park',
-    manager_id: 4,
-    category_name: 'Training',
-    request_type: 'Training',
-    total_amount: 420,
-    status: PENDING_MANAGER_STATUS,
-    current_processor_id: 4,
-    created_at: '2026-05-17T14:10:00Z',
-  },
-  {
-    id: 1039,
-    employee_id: 18,
-    employee_name: 'Linh Nguyen',
-    manager_id: 4,
-    category_name: 'Meals',
-    request_type: 'Meals',
-    total_amount: 96.4,
-    status: PENDING_MANAGER_STATUS,
-    current_processor_id: 4,
-    created_at: '2026-05-16T11:35:00Z',
-  },
-  {
-    id: 1038,
-    employee_id: 21,
-    employee_name: 'Out of Scope Employee',
-    manager_id: 6,
-    category_name: 'Accommodation',
-    total_amount: 810,
-    status: PENDING_MANAGER_STATUS,
-    current_processor_id: 6,
-    created_at: '2026-05-15T08:00:00Z',
-  },
-  {
-    id: 1037,
-    employee_id: 12,
-    employee_name: 'Maya Tran',
-    manager_id: 4,
-    category_name: 'Office Supplies',
-    total_amount: 72.5,
-    status: 'Draft',
-    current_processor_id: null,
-    created_at: '2026-05-14T10:00:00Z',
-  },
-]
 
 async function requestExpense(path, options = {}) {
   const response = await fetch(path, {
@@ -93,21 +34,22 @@ async function requestExpense(path, options = {}) {
 }
 
 export async function fetchManagerPendingRequests() {
-  try {
-    const response = await requestExpense(managerApiRoutes.pendingRequests)
-    const requests = Array.isArray(response) ? response : response.requests
-    return normalizeManagerPendingRequests(requests ?? [])
-  } catch (error) {
-    if (!canUseManagerPendingFallback(error)) {
-      throw error
-    }
-
-    return normalizeManagerPendingRequests(FALLBACK_MANAGER_PENDING_REQUESTS)
-  }
+  const params = new URLSearchParams({
+    page: '1',
+    page_size: '20',
+    sort: 'created_at',
+    order: 'desc',
+  })
+  const response = await requestExpense(`${managerApiRoutes.pendingRequests}?${params}`, {
+    headers: { 'X-User-Id': MANAGER_DASHBOARD_USER_ID },
+  })
+  return normalizeManagerPendingRequests(response.requests ?? [])
 }
 
 export async function fetchManagerPendingRequestsSummary() {
-  const response = await requestExpense(managerApiRoutes.pendingRequestsSummary)
+  const response = await requestExpense(managerApiRoutes.pendingRequestsSummary, {
+    headers: { 'X-User-Id': MANAGER_DASHBOARD_USER_ID },
+  })
 
   return {
     pendingCount: Number(response.pending_count ?? response.pendingCount ?? 0),
@@ -187,22 +129,9 @@ function toDateOnly(value) {
 }
 
 function normalizeManagerPendingRequests(requests) {
-  const currentUserId = Number(CURRENT_USER_ID)
-
   return requests
     .map(toManagerPendingRequestViewModel)
     .filter((request) => request.status === PENDING_MANAGER_STATUS)
-    .filter((request) => {
-      if (request.managerId != null) {
-        return Number(request.managerId) === currentUserId
-      }
-
-      if (request.currentProcessorId != null) {
-        return Number(request.currentProcessorId) === currentUserId
-      }
-
-      return true
-    })
     .sort((firstRequest, secondRequest) =>
       secondRequest.createdDate.localeCompare(firstRequest.createdDate),
     )
@@ -217,7 +146,6 @@ function toManagerPendingRequestViewModel(request) {
       request.employee ??
       `Employee #${request.employee_id ?? request.employeeId ?? 'Unknown'}`,
     employeeId: request.employee_id ?? request.employeeId,
-    managerId: request.manager_id ?? request.managerId,
     currentProcessorId: request.current_processor_id ?? request.currentProcessorId,
     requestType:
       request.request_type ??
@@ -233,16 +161,6 @@ function toManagerPendingRequestViewModel(request) {
     status: request.status,
     currency: request.currency ?? 'USD',
   }
-}
-
-function canUseManagerPendingFallback(error) {
-  return (
-    error.status === 404 ||
-    error.status === 405 ||
-    error.code === 'NON_JSON_RESPONSE' ||
-    error instanceof SyntaxError ||
-    error instanceof TypeError
-  )
 }
 
 function toExpenseApiPayload(expense, options = {}) {
