@@ -1,22 +1,47 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { MOCK_REQUESTS } from "../data/mockRequests";
 
 export default function RequestDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  
-  // Find request or use dummy fallback if not found in mock
-  const request = MOCK_REQUESTS.find(r => r.id === id) || {
-    id: id,
-    employeeName: "Bob Johnson",
-    category: "Meals",
-    submittedDate: "2026-02-05T00:00:00.000Z",
-    amount: 45.00,
-    status: "Pending Finance",
-    description: "Business lunch with client",
-    tripDateFrom: "2026-05-01",
-    tripDateTo: "2026-05-01",
-  };
+
+  const [request, setRequest] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || "";
+    fetch(`${apiBase}/api/finance/requests/${id}`, {
+      headers: {
+        "X-User-Id": "2" // Finance Manager User ID
+      }
+    })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error("Không thể tải thông tin chi tiết yêu cầu thanh toán");
+        }
+        return res.json();
+      })
+      .then(fetchedData => {
+        // Map backend fields to frontend model
+        setRequest({
+          id: `#${fetchedData.id}`,
+          employeeName: fetchedData.employee_name,
+          category: fetchedData.category_name,
+          submittedDate: fetchedData.created_at,
+          amount: parseFloat(fetchedData.total_amount),
+          status: fetchedData.status,
+          tripDateFrom: fetchedData.start_date,
+          tripDateTo: fetchedData.end_date,
+          line_items: fetchedData.line_items || []
+        });
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [id]);
 
   const Card = ({ children, title, subtitle }) => (
     <div style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
@@ -26,6 +51,28 @@ export default function RequestDetailPage() {
       {children}
     </div>
   );
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", display: "flex", justifyContent: "center", alignItems: "center", fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ color: "#6B7280", fontSize: 16 }}>Đang tải thông tin chi tiết...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", fontFamily: "'Inter', sans-serif", gap: 16 }}>
+        <div style={{ color: "#DC2626", fontSize: 16 }}>Lỗi: {error}</div>
+        <button 
+          onClick={() => navigate("/finance")}
+          style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #E5E7EB", backgroundColor: "#FFFFFF", cursor: "pointer", fontSize: 14 }}
+        >
+          Quay lại danh sách
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", fontFamily: "'Inter', sans-serif" }}>
@@ -101,15 +148,23 @@ export default function RequestDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr style={{ borderBottom: "1px solid #F3F4F6" }}>
-                      <td style={{ padding: "16px", color: "#374151" }}>2026-05-01</td>
-                      <td style={{ padding: "16px", color: "#111827", fontWeight: 500 }}>Lunch</td>
-                      <td style={{ padding: "16px", color: "#6B7280" }}>Team lunch</td>
-                      <td style={{ padding: "16px", color: "#111827", fontWeight: 600, textAlign: "right" }}>$45.00</td>
-                    </tr>
+                    {request.line_items.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#6B7280" }}>Không có chi tiết mặt hàng nào.</td>
+                      </tr>
+                    ) : (
+                      request.line_items.map((item, idx) => (
+                        <tr key={item.id || idx} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                          <td style={{ padding: "16px", color: "#374151" }}>{item.expense_date}</td>
+                          <td style={{ padding: "16px", color: "#111827", fontWeight: 500 }}>{item.item_service_name}</td>
+                          <td style={{ padding: "16px", color: "#6B7280" }}>{item.purpose_note}</td>
+                          <td style={{ padding: "16px", color: "#111827", fontWeight: 600, textAlign: "right" }}>${parseFloat(item.amount).toFixed(2)}</td>
+                        </tr>
+                      ))
+                    )}
                     <tr style={{ backgroundColor: "#FAFAFA" }}>
                       <td colSpan={3} style={{ padding: "16px", fontWeight: 700, color: "#111827", textAlign: "center" }}>Total</td>
-                      <td style={{ padding: "16px", fontWeight: 800, color: "#111827", textAlign: "right" }}>$45.00</td>
+                      <td style={{ padding: "16px", fontWeight: 800, color: "#111827", textAlign: "right" }}>${request.amount.toFixed(2)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -162,7 +217,7 @@ export default function RequestDetailPage() {
                   <div style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#3B82F6", border: "4px solid #FFFFFF", flexShrink: 0, marginTop: 2 }}></div>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Submitted</div>
-                    <div style={{ fontSize: 13, color: "#6B7280" }}>2/5/2026</div>
+                    <div style={{ fontSize: 13, color: "#6B7280" }}>{new Date(request.submittedDate).toLocaleDateString("en-US")}</div>
                   </div>
                 </div>
 
@@ -181,3 +236,4 @@ export default function RequestDetailPage() {
     </div>
   );
 }
+
