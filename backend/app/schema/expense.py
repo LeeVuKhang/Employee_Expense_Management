@@ -54,12 +54,15 @@ class ExpenseRequestUpdate(BaseModel):
 class ExpenseRequestRead(BaseModel):
     id: int
     employee_id: int
+    employee_name: str | None = None
     category_id: int
+    category_name: str | None = None
     start_date: date
     end_date: date
     total_amount: Decimal
     status: RequestStatus
     current_processor_id: int | None
+    current_processor_name: str | None = None
     rejection_reason: str | None
     is_locked: bool
     created_at: datetime | None

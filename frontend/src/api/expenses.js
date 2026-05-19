@@ -28,17 +28,17 @@ export async function fetchExpenseRequest(expenseId) {
 function toExpenseViewModel(expense) {
   return {
     id: String(expense.id),
-    employee: `Employee #${expense.employee_id}`,
+    employee: expense.employee_name ?? `Employee #${expense.employee_id}`,
     employeeId: expense.employee_id,
     submittedOn: toDateOnly(expense.created_at) ?? expense.start_date,
-    category: `Category #${expense.category_id}`,
+    category: expense.category_name ?? `Category #${expense.category_id}`,
     categoryId: expense.category_id,
     tripStart: expense.start_date,
     tripEnd: expense.end_date,
     status: expense.status,
-    processor: expense.current_processor_id
-      ? `User #${expense.current_processor_id}`
-      : 'Employee',
+    processor:
+      expense.current_processor_name ??
+      (expense.current_processor_id ? `User #${expense.current_processor_id}` : 'Employee'),
     attachments: [],
     lineItems: expense.line_items.map((lineItem) => ({
       id: String(lineItem.id),
