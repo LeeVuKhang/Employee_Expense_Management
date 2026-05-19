@@ -1,5 +1,6 @@
 .app-shell {
-  min-height: 100vh;
+  width: 100%;
+  min-height: 100svh;
   background: #f5f7fb;
   color: #020b22;
 }
@@ -23,9 +24,9 @@
 }
 
 .page-frame {
-  width: min(1280px, 100% - 48px);
+  width: min(1600px, 100% - 64px);
   margin: 0 auto;
-  padding: 34px 0 48px;
+  padding: 36px 0 56px;
   text-align: left;
 }
 
@@ -36,15 +37,16 @@
 
 .detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 406px;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 430px);
   align-items: start;
-  gap: 30px;
+  gap: 32px;
 }
 
 .detail-main,
 .side-panel {
   display: grid;
   gap: 30px;
+  min-width: 0;
 }
 
 .detail-heading {
@@ -59,8 +61,8 @@
 .page-title-row h1 {
   margin: 0;
   color: #06132d;
-  font-size: 39px;
-  font-weight: 800;
+  font-size: 38px;
+  font-weight: 700;
   letter-spacing: 0;
   line-height: 1.15;
 }
@@ -103,19 +105,24 @@
 .processor-pill {
   display: inline-flex;
   width: fit-content;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
   border-radius: 999px;
   background: #eef3f9;
   color: #071636;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   padding: 12px 18px;
   font-size: 18px;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .card {
-  padding: 30px;
+  min-width: 0;
+  padding: 32px;
   border: 1px solid #dcdfe5;
   border-radius: 16px;
   background: #ffffff;
@@ -125,8 +132,8 @@
 .card h2 {
   margin: 0 0 28px;
   color: #020817;
-  font-size: 30px;
-  font-weight: 800;
+  font-size: 29px;
+  font-weight: 700;
   letter-spacing: 0;
   line-height: 1.15;
 }
@@ -163,7 +170,7 @@
   background: #f5f7fa;
   color: #536b91;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -187,7 +194,7 @@
 .total-row td {
   border-bottom: 0;
   background: #fbfcfe;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .attachment-box {
@@ -231,7 +238,7 @@
   border-radius: 8px;
   cursor: pointer;
   font: inherit;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .primary-button {
@@ -267,7 +274,7 @@
   border-radius: 8px;
   background: #f3f6fb;
   color: #455a78;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .timeline {
@@ -330,7 +337,7 @@
   margin-bottom: 6px;
   color: #536b91;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -362,7 +369,7 @@ button:focus-visible {
 
 .request-form-page {
   display: grid;
-  gap: 34px;
+  gap: 36px;
 }
 
 .form-page-heading {
@@ -375,8 +382,8 @@ button:focus-visible {
 .form-page-heading h1 {
   margin: 0;
   color: #06132d;
-  font-size: 39px;
-  font-weight: 800;
+  font-size: 38px;
+  font-weight: 700;
   letter-spacing: 0;
   line-height: 1.15;
 }
@@ -388,9 +395,9 @@ button:focus-visible {
 
 .request-form-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 354px;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
   align-items: start;
-  gap: 30px;
+  gap: 32px;
 }
 
 .request-form-main {
@@ -425,7 +432,7 @@ button:focus-visible {
 
 .line-item-row {
   display: grid;
-  grid-template-columns: minmax(160px, 0.9fr) minmax(240px, 1.6fr);
+  grid-template-columns: minmax(180px, 0.85fr) minmax(260px, 1.5fr);
   gap: 22px 20px;
   padding: 24px 20px 20px;
   border: 1px solid #d8e1ef;
@@ -450,7 +457,7 @@ button:focus-visible {
   color: #bf1f32;
   cursor: pointer;
   font: inherit;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .add-item-button {
@@ -465,7 +472,7 @@ button:focus-visible {
   color: #06132d;
   cursor: pointer;
   font: inherit;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .add-item-button span {
@@ -486,7 +493,7 @@ button:focus-visible {
 }
 
 .attachment-upload input {
-  width: min(420px, 100%);
+  width: min(540px, 100%);
   margin-bottom: 16px;
   text-align: center;
 }
@@ -507,6 +514,7 @@ button:focus-visible {
   top: 24px;
   display: grid;
   gap: 24px;
+  align-content: start;
 }
 
 .summary-row {
@@ -520,19 +528,20 @@ button:focus-visible {
 }
 
 .summary-total {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
   margin: 8px 0 28px;
   color: #17223a;
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .summary-total strong {
   color: #1e5bff;
-  font-size: 30px;
+  font-size: clamp(28px, 2.2vw, 36px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .toast {
@@ -545,7 +554,7 @@ button:focus-visible {
   border-radius: 8px;
   background: #ffffff;
   color: #06132d;
-  font-weight: 800;
+  font-weight: 700;
   box-shadow: 0 12px 30px rgba(17, 24, 39, 0.18);
 }
 
@@ -559,7 +568,7 @@ button:focus-visible {
 
 .feedback-card {
   color: #405572;
-  font-weight: 800;
+  font-weight: 700;
   text-align: center;
 }
 
