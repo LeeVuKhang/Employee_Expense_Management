@@ -29,9 +29,10 @@ export default function FinancePage() {
         "X-User-Id": "2"
       }
     })
-      .then(res => {
+      .then(async res => {
         if (!res.ok) {
-          throw new Error("Không thể tải danh sách yêu cầu tài chính");
+          const text = await res.text();
+          throw new Error(`Không thể tải danh sách yêu cầu tài chính (${res.status}): ${text}`);
         }
         return res.json();
       })

@@ -16,9 +16,10 @@ export default function RequestDetailPage() {
         "X-User-Id": "2" // Finance Manager User ID
       }
     })
-      .then(res => {
+      .then(async res => {
         if (!res.ok) {
-          throw new Error("Không thể tải thông tin chi tiết yêu cầu thanh toán");
+          const text = await res.text();
+          throw new Error(`Không thể tải thông tin chi tiết yêu cầu thanh toán (${res.status}): ${text}`);
         }
         return res.json();
       })
