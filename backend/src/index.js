@@ -1,6 +1,13 @@
 const express = require('express');
-const app = express();
+require('dotenv').config();
 
+const expenseRoutes = require('./routes/expenseRoutes');
+
+const app = express();
 app.use(express.json());
 
-app.listen(3000, () => console.log('Server running on port 3000'));
+// Routes
+app.use('/api/expenses', expenseRoutes);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log('Server running on port ' + PORT));
