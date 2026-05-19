@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
-import { fetchExpenseRequest } from './api/expenses'
+import {
+  cancelExpenseRequest,
+  createExpenseRequest,
+  duplicateExpenseRequest,
+  fetchExpenseRequest,
+  updateExpenseRequest,
+} from './api/expenses'
 import CancelRequestModal from './components/requests/CancelRequestModal'
 import RequestActions from './components/requests/RequestActions'
 import { expenseRoutes, legacyRequestRoutes } from './routes'
 import './App.css'
 
 const EDITABLE_REQUEST_ACTION_STATUSES = new Set(['Draft', 'Pending Manager'])
+const EXPENSE_CATEGORIES = [
+  { id: 1, name: 'Travel' },
+  { id: 2, name: 'Accommodation' },
+  { id: 3, name: 'Meals' },
+  { id: 4, name: 'Office Supplies' },
+  { id: 5, name: 'Training' },
+]
 const params = new URLSearchParams(window.location.search)
 const INITIAL_REQUEST_ID = normalizeInitialRequestId(
   params.get('id') ?? localStorage.getItem('requestId') ?? '1',
@@ -138,69 +151,61 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
     navigate(expenseRoutes.edit(request.id))
   }
 
-  function startDuplicateRequest(request) {
-    navigate(expenseRoutes.duplicate(request.id))
-    showToast('success', `${request.id} was duplicated into a new draft.`)
+  async function startDuplicateRequest(request) {
+    try {
+      const duplicatedRequest = await duplicateExpenseRequest(request.id)
+
+      setRequests((currentRequests) => [
+        duplicatedRequest,
+        ...currentRequests.filter(
+          (currentRequest) => String(currentRequest.id) !== String(duplicatedRequest.id),
+        ),
+      ])
+      navigate(expenseRoutes.detail(duplicatedRequest.id))
+      showToast('success', `${request.id} was duplicated into request ${duplicatedRequest.id}.`)
+    } catch (error) {
+      showToast('error', error.message)
+    }
   }
 
-  function saveRequest(formData) {
-    const normalizedForm = normalizeForm(formData)
+  async function saveRequest(formData, requestedStatus = 'Draft') {
+    const normalizedForm = normalizeForm({
+      ...formData,
+      status: routeMode === 'edit' ? formData.status : requestedStatus,
+    })
 
     if (routeMode !== 'edit' && !normalizedForm.lineItems.length) {
       showToast('error', 'Add at least one line item before saving.')
       return
     }
 
-    if (routeMode === 'edit') {
+    try {
+      const savedRequest =
+        routeMode === 'edit'
+          ? await updateExpenseRequest(requestId, normalizedForm)
+          : await createExpenseRequest(normalizedForm)
+
       setRequests((currentRequests) =>
-        currentRequests.map((request) =>
-          request.id === requestId
-            ? {
-                ...request,
-                ...normalizedForm,
-                attachments: normalizedForm.attachments.map((attachment, index) => ({
-                  id: `ATT-${request.id}-${index}`,
-                  fileName: attachment,
-                })),
-              }
-            : request,
-        ),
+        [
+          savedRequest,
+          ...currentRequests.filter(
+            (request) => String(request.id) !== String(savedRequest.id),
+          ),
+        ],
       )
-      navigate(expenseRoutes.detail(requestId))
-      showToast('success', 'Request updated successfully.')
-      return
+      navigate(expenseRoutes.detail(savedRequest.id))
+      showToast(
+        'success',
+        routeMode === 'edit'
+          ? 'Request updated successfully.'
+          : 'Request saved to database successfully.',
+      )
+    } catch (error) {
+      showToast('error', error.message)
     }
-
-    const newRequest = {
-      id: nextRequestId(requests),
-      employee: 'Alice Smith',
-      submittedOn: todayISO(),
-      ...normalizedForm,
-      attachments: normalizedForm.attachments.map((attachment, index) => ({
-        id: `ATT-${Date.now()}-${index}`,
-        fileName: attachment,
-      })),
-      status: normalizedForm.status ?? 'Draft',
-      processor: normalizedForm.status === 'Pending Manager' ? 'Manager' : 'Employee',
-      timeline: [
-        {
-          label: normalizedForm.status === 'Pending Manager' ? 'Submitted' : 'Draft created',
-          date: todayISO(),
-        },
-      ],
-    }
-
-    setRequests((currentRequests) => [newRequest, ...currentRequests])
-    navigate(expenseRoutes.detail(newRequest.id))
-    showToast(
-      'success',
-      routeMode === 'duplicate'
-        ? 'Duplicated request saved as a new draft.'
-        : 'Request created successfully.',
-    )
   }
 
-  function confirmCancelRequest() {
+  async function confirmCancelRequest() {
     if (!cancelRequestId) return
 
     const requestToCancel =
@@ -212,20 +217,20 @@ function ExpenseRequestWorkspace({ requests, routeMode = 'detail', setRequests }
       return
     }
 
-    setRequests((currentRequests) =>
-      currentRequests.map((request) =>
-        request.id === cancelRequestId
-          ? {
-              ...request,
-              status: 'Cancelled',
-              processor: 'None',
-              timeline: [...request.timeline, { label: 'Cancelled', date: todayISO() }],
-            }
-          : request,
-      ),
-    )
-    setCancelRequestId(null)
-    showToast('success', 'Request cancelled successfully.')
+    try {
+      const cancelledRequest = await cancelExpenseRequest(cancelRequestId)
+
+      setRequests((currentRequests) =>
+        currentRequests.map((request) =>
+          String(request.id) === String(cancelRequestId) ? cancelledRequest : request,
+        ),
+      )
+      setCancelRequestId(null)
+      showToast('success', 'Request cancelled successfully.')
+    } catch (error) {
+      setCancelRequestId(null)
+      showToast('error', error.message)
+    }
   }
 
   const currentRequestError =
@@ -401,6 +406,18 @@ function RequestForm({
     setFormData((currentForm) => ({ ...currentForm, [field]: value }))
   }
 
+  function updateCategory(categoryId) {
+    const category = EXPENSE_CATEGORIES.find(
+      (expenseCategory) => String(expenseCategory.id) === String(categoryId),
+    )
+
+    setFormData((currentForm) => ({
+      ...currentForm,
+      category: category?.name ?? currentForm.category,
+      categoryId: Number(categoryId),
+    }))
+  }
+
   function updateLineItem(lineItemId, field, value) {
     setFormData((currentForm) => ({
       ...currentForm,
@@ -457,16 +474,14 @@ function RequestForm({
               <label className="full-span">
                 Expense Category
                 <select
-                  value={formData.category}
-                  onChange={(event) =>
-                    updateField('category', event.target.value)
-                  }
+                  value={formData.categoryId}
+                  onChange={(event) => updateCategory(event.target.value)}
                 >
-                  <option>Travel</option>
-                  <option>Meals</option>
-                  <option>Office Supplies</option>
-                  <option>Software</option>
-                  <option>Training</option>
+                  {EXPENSE_CATEGORIES.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>
@@ -604,14 +619,14 @@ function RequestForm({
           <button
             className="primary-button"
             type="button"
-            onClick={() => onSubmit(formData)}
+            onClick={() => onSubmit(formData, 'Pending Manager')}
           >
             Submit Request
           </button>
           <button
             className="secondary-button"
             type="button"
-            onClick={() => onSaveDraft(formData)}
+            onClick={() => onSaveDraft(formData, 'Draft')}
           >
             Save as Draft
           </button>
@@ -663,9 +678,11 @@ function LineItemsTable({ lineItems, total }) {
 }
 
 function createEmptyForm() {
+  const defaultCategory = EXPENSE_CATEGORIES[0]
+
   return {
-    category: 'Travel',
-    categoryId: '',
+    category: defaultCategory.name,
+    categoryId: defaultCategory.id,
     tripStart: todayISO(),
     tripEnd: todayISO(),
     status: 'Draft',
@@ -701,9 +718,13 @@ function copyRequestToForm(request) {
 }
 
 function normalizeForm(form) {
+  const category = EXPENSE_CATEGORIES.find(
+    (expenseCategory) => String(expenseCategory.id) === String(form.categoryId),
+  )
+
   return {
-    category: form.category,
-    categoryId: form.categoryId,
+    category: category?.name ?? form.category,
+    categoryId: Number(form.categoryId),
     tripStart: form.tripStart,
     tripEnd: form.tripEnd,
     status: form.status,
@@ -723,16 +744,6 @@ function normalizeForm(form) {
         amount: Number(lineItem.amount) || 0,
       })),
   }
-}
-
-function nextRequestId(requests) {
-  const nextId =
-    Math.max(
-      ...requests.map((request) => Number(String(request.id).replace('REQ-', ''))),
-      0,
-    ) + 1
-
-  return String(nextId)
 }
 
 function normalizeInitialRequestId(requestId) {
