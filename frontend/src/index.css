@@ -11,12 +11,12 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Segoe UI Variable Text', 'Segoe UI', Roboto, Arial, sans-serif;
+  --heading: 'Segoe UI Variable Display', 'Segoe UI', Roboto, Arial, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  font: 17px/145% var(--sans);
+  letter-spacing: 0;
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -52,15 +52,24 @@
 
 body {
   margin: 0;
+  min-width: 320px;
+  min-height: 100svh;
+  background: #f5f7fb;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 #root {
-  max-width: 100%;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
 }
 
 h1,
