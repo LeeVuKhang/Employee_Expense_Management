@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/layouts/Navbar";
 import StatCard from "../components/ui/StatCard";
 import SearchBar from "../components/ui/SearchBar";
@@ -6,6 +7,7 @@ import RequestCard from "../components/requests/RequestCard";
 import { MOCK_REQUESTS } from "../data/mockRequests";
 
 export default function FinancePage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Pending Finance");
 
@@ -81,7 +83,7 @@ export default function FinancePage() {
         {/* Requests List */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {MOCK_REQUESTS.map(req => (
-            <RequestCard key={req.id} request={req} />
+            <RequestCard key={req.id} request={req} onClick={() => navigate(`/finance/request/${req.id}`)} />
           ))}
         </div>
       </main>

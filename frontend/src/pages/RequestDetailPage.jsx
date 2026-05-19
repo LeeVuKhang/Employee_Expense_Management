@@ -1,0 +1,183 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { MOCK_REQUESTS } from "../data/mockRequests";
+
+export default function RequestDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  
+  // Find request or use dummy fallback if not found in mock
+  const request = MOCK_REQUESTS.find(r => r.id === id) || {
+    id: id,
+    employeeName: "Bob Johnson",
+    category: "Meals",
+    submittedDate: "2026-02-05T00:00:00.000Z",
+    amount: 45.00,
+    status: "Pending Finance",
+    description: "Business lunch with client",
+    tripDateFrom: "2026-05-01",
+    tripDateTo: "2026-05-01",
+  };
+
+  const Card = ({ children, title, subtitle }) => (
+    <div style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      {title && <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: "0 0 4px 0", letterSpacing: "-0.3px" }}>{title}</h2>}
+      {subtitle && <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 20px 0" }}>{subtitle}</p>}
+      {!subtitle && title && <div style={{ marginBottom: 20 }} />}
+      {children}
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", fontFamily: "'Inter', sans-serif" }}>
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+            <button 
+              onClick={() => navigate("/finance")}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", marginTop: 4, color: "#374151" }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+            </button>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, color: "#111827", margin: 0, letterSpacing: "-0.5px" }}>{request.id}</h1>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", backgroundColor: "#F3F4F6", borderRadius: 6, fontSize: 12, fontWeight: 600, color: "#6B7280" }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  Locked
+                </span>
+              </div>
+              <p style={{ fontSize: 15, color: "#6B7280", margin: 0 }}>
+                Submitted by <span style={{ fontWeight: 600 }}>{request.employeeName}</span> on {new Date(request.submittedDate).toLocaleDateString("en-US")}
+              </p>
+            </div>
+          </div>
+          
+          <div style={{ display: "inline-flex", padding: "6px 12px", backgroundColor: "#F3F4F6", borderRadius: 20, fontSize: 13, fontWeight: 600, color: "#374151" }}>
+            Current Processor: Finance
+          </div>
+        </div>
+
+        {/* Grid Content */}
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+          {/* Left Column */}
+          <div style={{ flex: "2 1 600px", display: "flex", flexDirection: "column" }}>
+            <Card title="Expense Details">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 24, columnGap: 24 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Category</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{request.category}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Trip Dates</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{request.tripDateFrom} to {request.tripDateTo}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Status</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{request.status}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Total Amount</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>${request.amount.toFixed(2)}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Line Items">
+              <div style={{ width: "100%", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ color: "#6B7280", borderBottom: "1px solid #F3F4F6", backgroundColor: "#F9FAFB" }}>
+                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12 }}>DATE</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12 }}>ITEM NAME</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12 }}>PURPOSE</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12, textAlign: "right" }}>AMOUNT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: "1px solid #F3F4F6" }}>
+                      <td style={{ padding: "16px", color: "#374151" }}>2026-05-01</td>
+                      <td style={{ padding: "16px", color: "#111827", fontWeight: 500 }}>Lunch</td>
+                      <td style={{ padding: "16px", color: "#6B7280" }}>Team lunch</td>
+                      <td style={{ padding: "16px", color: "#111827", fontWeight: 600, textAlign: "right" }}>$45.00</td>
+                    </tr>
+                    <tr style={{ backgroundColor: "#FAFAFA" }}>
+                      <td colSpan={3} style={{ padding: "16px", fontWeight: 700, color: "#111827", textAlign: "center" }}>Total</td>
+                      <td style={{ padding: "16px", fontWeight: 800, color: "#111827", textAlign: "right" }}>$45.00</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card title="Attachments" subtitle="Receipts and invoices for this request.">
+              <div style={{ border: "1px dashed #E5E7EB", borderRadius: 8, padding: "32px", textAlign: "center", color: "#6B7280", fontSize: 14, fontStyle: "italic" }}>
+                No attachments provided.
+              </div>
+            </Card>
+          </div>
+
+          {/* Right Column */}
+          <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column" }}>
+            <Card title="Actions">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <button style={{ 
+                  width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: "pointer",
+                  backgroundColor: "#10B981", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+                }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                  Finance Approve
+                </button>
+                <button style={{ 
+                  width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: "pointer",
+                  backgroundColor: "#EF4444", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+                }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                  </svg>
+                  Decline Request
+                </button>
+              </div>
+            </Card>
+
+            <Card title="Timeline">
+              <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "relative" }}>
+                {/* Vertical line connecting timeline items */}
+                <div style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 2, backgroundColor: "#E5E7EB", zIndex: 0 }}></div>
+                
+                <div style={{ display: "flex", gap: 16, position: "relative", zIndex: 1 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#3B82F6", border: "4px solid #FFFFFF", flexShrink: 0, marginTop: 2 }}></div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Submitted</div>
+                    <div style={{ fontSize: 13, color: "#6B7280" }}>2/5/2026</div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 16, position: "relative", zIndex: 1 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#3B82F6", border: "4px solid #FFFFFF", flexShrink: 0, marginTop: 2 }}></div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Manager Review</div>
+                    <div style={{ fontSize: 13, color: "#6B7280" }}>Approved</div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
