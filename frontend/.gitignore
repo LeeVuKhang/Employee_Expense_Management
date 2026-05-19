@@ -13,6 +13,11 @@ dist
 dist-ssr
 *.local
 
+# Environment variables — chứa Supabase keys, không commit lên git
+.env
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -12,6 +12,12 @@ class ExpenseLineItemBase(BaseModel):
     amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     purpose_note: str = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def validate_expense_date(self) -> "ExpenseLineItemBase":
+        if self.expense_date > date.today():
+            raise ValueError("expense_date cannot be in the future")
+        return self
+
 
 class ExpenseLineItemCreate(ExpenseLineItemBase):
     pass
@@ -19,6 +25,11 @@ class ExpenseLineItemCreate(ExpenseLineItemBase):
 
 class ExpenseLineItemRead(ExpenseLineItemBase):
     id: int
+
+
+class ExpenseCategoryRead(BaseModel):
+    id: int
+    name: str
 
 
 class ExpenseRequestBase(BaseModel):
@@ -30,6 +41,8 @@ class ExpenseRequestBase(BaseModel):
     def validate_dates(self) -> "ExpenseRequestBase":
         if self.end_date < self.start_date:
             raise ValueError("end_date must be greater than or equal to start_date")
+        if self.start_date > date.today() or self.end_date > date.today():
+            raise ValueError("start_date and end_date cannot be in the future")
         return self
 
 
@@ -48,6 +61,10 @@ class ExpenseRequestUpdate(BaseModel):
     def validate_dates(self) -> "ExpenseRequestUpdate":
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValueError("end_date must be greater than or equal to start_date")
+        if (self.start_date and self.start_date > date.today()) or (
+            self.end_date and self.end_date > date.today()
+        ):
+            raise ValueError("start_date and end_date cannot be in the future")
         return self
 
 
