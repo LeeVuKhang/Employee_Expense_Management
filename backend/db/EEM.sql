@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- 1. EXTENSIONS & SETUP
 -- ==============================================================================
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- (Đã gỡ bỏ extension uuid-ossp vì sử dụng Auto-increment Integer)
 
 -- ==============================================================================
 -- 2. ENUMS & LOOKUP TABLES
@@ -22,7 +22,7 @@ CREATE TYPE request_status AS ENUM (
 
 -- Predefined list of expense categories (Expense AC1)
 CREATE TABLE expense_categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE
@@ -33,19 +33,19 @@ CREATE TABLE expense_categories (
 -- ==============================================================================
 -- Users table with self-referencing manager_id for approval routing
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
     full_name VARCHAR(150) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     role user_role NOT NULL,
-    manager_id UUID REFERENCES users(id), -- Nullable for Admin/Finance or Top-level Managers
+    manager_id INT REFERENCES users(id), -- Nullable for Admin/Finance or Top-level Managers
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Main Expense Request Header
 CREATE TABLE expense_requests (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    employee_id UUID NOT NULL REFERENCES users(id),
-    category_id UUID NOT NULL REFERENCES expense_categories(id),
+    id SERIAL PRIMARY KEY,
+    employee_id INT NOT NULL REFERENCES users(id),
+    category_id INT NOT NULL REFERENCES expense_categories(id),
     
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE expense_requests (
     status request_status DEFAULT 'Draft',
     
     -- Workflow & Tracking
-    current_processor_id UUID REFERENCES users(id), -- Indicates whose turn it is (Dashboard AC3)
+    current_processor_id INT REFERENCES users(id), -- Indicates whose turn it is (Dashboard AC3)
     rejection_reason TEXT, -- Mandatory explanation if rejected (Manager/Finance AC3)
     is_locked BOOLEAN DEFAULT FALSE, -- Visually/Functionally locks request (Manage Requests AC3)
     
@@ -70,8 +70,8 @@ CREATE TABLE expense_requests (
 
 -- Expense Line Items (AC2)
 CREATE TABLE expense_line_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    expense_request_id UUID NOT NULL REFERENCES expense_requests(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    expense_request_id INT NOT NULL REFERENCES expense_requests(id) ON DELETE CASCADE,
     
     expense_date DATE NOT NULL,
     item_service_name VARCHAR(255) NOT NULL,
@@ -86,8 +86,8 @@ CREATE TABLE expense_line_items (
 
 -- Attached Proof Documents (AC1)
 CREATE TABLE attachments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    expense_request_id UUID NOT NULL REFERENCES expense_requests(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    expense_request_id INT NOT NULL REFERENCES expense_requests(id) ON DELETE CASCADE,
     
     file_name VARCHAR(255) NOT NULL,
     file_url VARCHAR(1024) NOT NULL,
@@ -101,9 +101,9 @@ CREATE TABLE attachments (
 
 -- Automated Notifications (Notifications AC1 & AC2)
 CREATE TABLE notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    expense_request_id UUID REFERENCES expense_requests(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expense_request_id INT REFERENCES expense_requests(id) ON DELETE CASCADE,
     
     message TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE,
@@ -112,9 +112,9 @@ CREATE TABLE notifications (
 
 -- Bảng lưu lịch sử các hành động để hiển thị Status timeline
 CREATE TABLE request_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    expense_request_id UUID NOT NULL REFERENCES expense_requests(id) ON DELETE CASCADE,
-    actor_id UUID NOT NULL REFERENCES users(id), -- Người thực hiện hành động (Employee, Manager, Finance)
+    id SERIAL PRIMARY KEY,
+    expense_request_id INT NOT NULL REFERENCES expense_requests(id) ON DELETE CASCADE,
+    actor_id INT NOT NULL REFERENCES users(id), -- Người thực hiện hành động (Employee, Manager, Finance)
     action_taken VARCHAR(50) NOT NULL, -- VD: 'Submitted', 'Approved', 'Rejected', 'Paid'
     comments TEXT, -- Lý do reject hoặc note thêm
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

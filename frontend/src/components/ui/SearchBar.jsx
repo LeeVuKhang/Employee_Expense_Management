@@ -12,7 +12,7 @@ export default function SearchBar({ value, onChange, placeholder = "Search..." }
         backgroundColor: "#FFFFFF",
         border: "1px solid #E5E7EB",
         borderRadius: 10,
-        padding: "10px 16px",
+        padding: "12px 18px",
         boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
         transition: "border-color 0.15s ease, box-shadow 0.15s ease",
       }}
@@ -25,7 +25,10 @@ export default function SearchBar({ value, onChange, placeholder = "Search..." }
         e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
       }}
     >
-      <span style={{ color: "#9CA3AF", fontSize: 16, lineHeight: 1 }}>🔍</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -34,7 +37,7 @@ export default function SearchBar({ value, onChange, placeholder = "Search..." }
           flex: 1,
           border: "none",
           outline: "none",
-          fontSize: 14,
+          fontSize: 15,
           color: "#374151",
           backgroundColor: "transparent",
           fontFamily: "inherit",
