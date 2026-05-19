@@ -1,16 +1,17 @@
 // src/hooks/useExpenseRequests.js
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 /**
- * Fetch expense requests từ Supabase và map sang camelCase cho các component.
+ * Fetch expense requests từ Backend FastAPI và map sang camelCase cho các component.
  *
- * Schema thực tế (EEM.sql):
- *   expense_requests: id, employee_id, category_id, start_date, end_date,
- *                     total_amount, status, created_at, rejection_reason, is_locked
- *   expense_categories: id, name
+ * Backend trả về (GET /api/expenses):
+ *   id, employee_id, category_id, category_name, start_date, end_date,
+ *   total_amount, status, created_at, updated_at, rejection_reason, is_locked,
+ *   line_items: [...]
  *
- * @param {number|null} userId  - employee_id (INT) để lọc. null = lấy tất cả.
+ * @param {number|null} userId  - employee_id (INT) gửi qua header X-User-Id.
  */
 export function useExpenseRequests(userId = null) {
   const [requests, setRequests] = useState([]);
@@ -21,57 +22,53 @@ export function useExpenseRequests(userId = null) {
     let ignore = false;
 
     async function fetchRequests() {
+      if (userId === null) {
+        setRequests([]);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
-      // Join expense_categories để lấy category name thay vì category_id
-      let query = supabase
-        .from("expense_requests")
-        .select(`
-          id,
-          employee_id,
-          start_date,
-          end_date,
-          total_amount,
-          status,
-          rejection_reason,
-          is_locked,
-          created_at,
-          expense_categories ( name )
-        `)
-        .order("created_at", { ascending: false });
+      try {
+        const res = await fetch(`${API_BASE}/api/expenses`, {
+          headers: {
+            "X-User-Id": String(userId),
+          },
+        });
 
-      if (userId !== null) {
-        query = query.eq("employee_id", userId);
-      }
+        if (ignore) return;
 
-      const { data, error: sbError } = await query;
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || `HTTP ${res.status}`);
+        }
 
-      if (ignore) return;
+        const data = await res.json();
 
-      if (sbError) {
-        setError(sbError.message);
-        setRequests([]);
-      } else {
-        // Map DB columns → camelCase fields dùng trong các component
+        // Map snake_case từ backend → camelCase cho component
         const normalized = (data ?? []).map((row) => ({
           id:            row.id,
           ownerId:       row.employee_id,
-          // category name từ join; fallback "Unknown" nếu chưa có data
-          category:      row.expense_categories?.name ?? "Unknown",
-          // description chưa có trong DB → hiển thị placeholder
+          category:      row.category_name ?? "Unknown",
           description:   row.rejection_reason ? `Rejected: ${row.rejection_reason}` : "—",
           amount:        Number(row.total_amount ?? 0),
-          status:        row.status,                // enum: 'Draft' | 'Pending Manager' | …
-          submittedDate: row.created_at,            // created_at dùng làm submitted date
+          status:        row.status,
+          submittedDate: row.created_at,
           tripDateFrom:  row.start_date,
           tripDateTo:    row.end_date,
           isLocked:      row.is_locked,
         }));
         setRequests(normalized);
+      } catch (err) {
+        if (!ignore) {
+          setError(err.message);
+          setRequests([]);
+        }
+      } finally {
+        if (!ignore) setLoading(false);
       }
-
-      setLoading(false);
     }
 
     fetchRequests();

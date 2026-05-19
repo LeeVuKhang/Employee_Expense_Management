@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     aws_region: str = "ap-southeast-1"
     s3_bucket: str | None = Field(default=None, alias="AWS_S3_BUCKET")
 
+    cors_origins: list[str] = ["http://localhost:5173"]
+
     @field_validator("debug", mode="before")
     @classmethod
     def parse_debug(cls, value: object) -> bool:
