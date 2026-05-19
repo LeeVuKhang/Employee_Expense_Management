@@ -36,16 +36,10 @@ export default function StatusBadge({ status }) {
           whiteSpace: "nowrap",
         }}
       >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.color, flexShrink: 0 }} />
+        <span style={{ display: "none" }} />
         {cfg.label}
       </span>
 
-      {/* AC3: Turn indicator */}
-      {cfg.turn && (
-        <span style={{ fontSize: 11, color: "#9CA3AF", fontStyle: "italic" }}>
-          Awaiting {cfg.turn}
-        </span>
-      )}
     </div>
   );
 }

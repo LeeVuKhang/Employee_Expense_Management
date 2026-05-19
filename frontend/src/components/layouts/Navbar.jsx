@@ -1,12 +1,12 @@
 // components/layout/Navbar.jsx
 // Sticky top navigation bar — standalone component
 
-const NAV_ITEMS = [
+const DEFAULT_NAV_ITEMS = [
   { label: "My Requests", href: "/my-requests", active: true },
   { label: "New Request", href: "/new-request", active: false },
 ];
 
-export default function Navbar({ activePage = "My Requests" }) {
+export default function Navbar({ activePage = "My Requests", navItems = DEFAULT_NAV_ITEMS }) {
   return (
     <nav
       style={{
@@ -56,7 +56,7 @@ export default function Navbar({ activePage = "My Requests" }) {
 
       {/* Nav links */}
       <div style={{ display: "flex", gap: 4 }}>
-        {NAV_ITEMS.map(({ label }) => {
+        {navItems.map(({ label, icon }) => {
           const isActive = label === activePage;
           return (
             <button

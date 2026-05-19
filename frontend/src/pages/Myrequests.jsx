@@ -1,7 +1,12 @@
 // pages/MyRequests.jsx
 import { useState, useMemo } from "react";
+import Navbar from "../components/layouts/Navbar";
 import RequestCard from "../components/requests/RequestCard";
+import RequestDetailModal from "../components/requests/RequestDetailModal";
 import StatusBadge from "../components/requests/StatusBadge";
+import StatusLegend from "../components/requests/StatusLegend";
+import SearchBar from "../components/ui/SearchBar";
+import StatCard from "../components/ui/StatCard";
 import { STATUS_CONFIG } from "../data/mockRequests";
 import { useExpenseRequests } from "../hooks/useExpenseRequests";
 
@@ -11,15 +16,6 @@ import { useExpenseRequests } from "../hooks/useExpenseRequests";
 const CURRENT_USER_ID = 4; // integer — Employee One (emp.one@company.com), có data trong DB
 
 const ALL_STATUSES = "all";
-
-function StatCard({ label, value, color, bg }) {
-  return (
-    <div style={{ flex: 1, minWidth: 120, padding: "16px 20px", borderRadius: 12, backgroundColor: bg, border: `1px solid ${color}33` }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color, fontFamily: "'DM Mono', monospace" }}>{value}</div>
-      <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2, fontWeight: 500 }}>{label}</div>
-    </div>
-  );
-}
 
 export default function MyRequests() {
   const [search, setSearch]               = useState("");
@@ -59,29 +55,11 @@ export default function MyRequests() {
     [myRequests, search, statusFilter]
   );
 
-  // Format ngày từ ISO string sang locale
-  const fmtDate = (d) => {
-    if (!d) return "—";
-    const dt = new Date(d);
-    return isNaN(dt.getTime()) ? d : dt.toLocaleDateString("vi-VN");
-  };
-
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
 
-      {/* Navbar */}
-      <nav style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid #E5E7EB", padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60, position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: 800, fontSize: 16 }}>E</div>
-          <span style={{ fontWeight: 700, fontSize: 16, color: "#111827" }}>Expensify</span>
-        </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          {[{ label: "My Requests", active: true }, { label: "New Request", active: false }].map(({ label, active }) => (
-            <button key={label} style={{ padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, backgroundColor: active ? "#EFF6FF" : "transparent", color: active ? "#2563EB" : "#6B7280" }}>{label}</button>
-          ))}
-        </div>
-        <div style={{ width: 34, height: 34, borderRadius: "50%", backgroundColor: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#2563EB" }}>JD</div>
-      </nav>
+      {/* Navbar — component từ components/layouts/Navbar.jsx */}
+      <Navbar activePage="My Requests" />
 
       {/* Body */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 24px" }}>
@@ -95,7 +73,7 @@ export default function MyRequests() {
           <button style={{ padding: "10px 20px", backgroundColor: "#2563EB", color: "#FFFFFF", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}>+ New Request</button>
         </div>
 
-        {/* Stats */}
+        {/* Stats — component từ components/ui/StatCard.jsx */}
         <div style={{ display: "flex", gap: 12, marginBottom: 28, flexWrap: "wrap" }}>
           <StatCard label="Total Requests"  value={stats.total}                                  color="#6B7280" bg="#F3F4F6" />
           <StatCard label="Pending Review"  value={stats.pending}                                color="#D97706" bg="#FFFBEB" />
@@ -104,18 +82,13 @@ export default function MyRequests() {
           <StatCard label="Total Claimed"   value={`$${stats.totalAmount.toLocaleString()}`}    color="#2563EB" bg="#EFF6FF" />
         </div>
 
-        {/* Search + Status filter */}
+        {/* Search + Status filter — component từ components/ui/SearchBar.jsx */}
         <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <span style={{ color: "#9CA3AF" }}>🔍</span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by ID, category, or description..."
-              style={{ flex: 1, border: "none", outline: "none", fontSize: 14, color: "#374151", backgroundColor: "transparent" }}
-            />
-            {search && <button onClick={() => setSearch("")} style={{ border: "none", background: "none", cursor: "pointer", color: "#9CA3AF", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>}
-          </div>
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by ID, category, or description..."
+          />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -128,18 +101,9 @@ export default function MyRequests() {
           </select>
         </div>
 
-        {/* Legend chips */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap", padding: "12px 16px", backgroundColor: "#FFFFFF", borderRadius: 10, border: "1px solid #E5E7EB", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>STATUS:</span>
-          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-            const active = statusFilter === key;
-            return (
-              <button key={key} onClick={() => setStatusFilter(active ? ALL_STATUSES : key)} style={{ display: "flex", alignItems: "center", gap: 5, border: "none", background: "none", cursor: "pointer", padding: 0 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: cfg.color, flexShrink: 0, display: "block" }} />
-                <span style={{ fontSize: 12, color: active ? cfg.color : "#6B7280", fontWeight: active ? 700 : 400 }}>{cfg.label}</span>
-              </button>
-            );
-          })}
+        {/* Legend chips — component từ components/requests/StatusLegend.jsx */}
+        <div style={{ marginBottom: 20 }}>
+          <StatusLegend activeStatus={statusFilter} onSelect={setStatusFilter} />
         </div>
 
         {/* List */}
@@ -172,38 +136,12 @@ export default function MyRequests() {
         )}
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail Modal — component từ components/requests/RequestDetailModal.jsx */}
       {selectedRequest && (
-        <div onClick={() => setSelectedRequest(null)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 24, backdropFilter: "blur(2px)" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: "#FFFFFF", borderRadius: 16, padding: 32, maxWidth: 480, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#111827", fontFamily: "'DM Mono', monospace" }}>#{selectedRequest.id}</h2>
-                <p style={{ margin: "4px 0 0", color: "#6B7280", fontSize: 13 }}>{selectedRequest.category}</p>
-              </div>
-              <button onClick={() => setSelectedRequest(null)} style={{ border: "none", background: "#F3F4F6", borderRadius: 8, width: 32, height: 32, cursor: "pointer", fontSize: 20, color: "#6B7280", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-            </div>
-
-            {[
-              ["Amount",     `$${selectedRequest.amount.toFixed(2)}`],
-              ["Submitted",  fmtDate(selectedRequest.submittedDate)],
-              ["Trip From",  fmtDate(selectedRequest.tripDateFrom)],
-              ["Trip To",    fmtDate(selectedRequest.tripDateTo)],
-              ...(selectedRequest.description && selectedRequest.description !== "—"
-                ? [["Note", selectedRequest.description]]
-                : []),
-            ].map(([label, val]) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #F3F4F6" }}>
-                <span style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>{label}</span>
-                <span style={{ fontSize: 13, color: "#111827", fontWeight: 600 }}>{val}</span>
-              </div>
-            ))}
-
-            <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
-              <StatusBadge status={selectedRequest.status} />
-            </div>
-          </div>
-        </div>
+        <RequestDetailModal
+          request={selectedRequest}
+          onClose={() => setSelectedRequest(null)}
+        />
       )}
     </div>
   );

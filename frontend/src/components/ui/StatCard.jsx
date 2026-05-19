@@ -1,13 +1,13 @@
 // components/ui/StatCard.jsx
 // Generic summary stat card used in the dashboard header
 
-export default function StatCard({ label, value, color, bg }) {
+export default function StatCard({ label, value, color, bg, labelColor }) {
   return (
     <div
       style={{
         flex: 1,
         minWidth: 120,
-        padding: "16px 20px",
+        padding: "24px 24px",
         borderRadius: 12,
         backgroundColor: bg,
         border: `1px solid ${color}33`,
@@ -24,24 +24,25 @@ export default function StatCard({ label, value, color, bg }) {
     >
       <div
         style={{
-          fontSize: 22,
-          fontWeight: 800,
-          color,
-          fontFamily: "'DM Mono', monospace",
-          letterSpacing: "-0.5px",
-        }}
-      >
-        {value}
-      </div>
-      <div
-        style={{
-          fontSize: 12,
-          color: "#6B7280",
-          marginTop: 3,
-          fontWeight: 500,
+          fontSize: 14,
+          color: labelColor || "#6B7280",
+          marginBottom: 8,
+          fontWeight: 600,
         }}
       >
         {label}
+      </div>
+      <div
+        style={{
+          fontSize: 36,
+          fontWeight: 800,
+          color,
+          fontFamily: "'Inter', sans-serif",
+          letterSpacing: "-0.5px",
+          lineHeight: 1,
+        }}
+      >
+        {value}
       </div>
     </div>
   );
