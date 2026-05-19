@@ -72,6 +72,7 @@ class ExpenseRequestRead(BaseModel):
     id: int
     employee_id: int
     category_id: int
+    category_name: str | None = None
     start_date: date
     end_date: date
     total_amount: Decimal

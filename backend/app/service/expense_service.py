@@ -3,7 +3,13 @@ from decimal import Decimal
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.model.expense import ExpenseLineItem, ExpenseRequest, RequestHistory, RequestStatus
+from app.model.expense import (
+    ExpenseCategory,
+    ExpenseLineItem,
+    ExpenseRequest,
+    RequestHistory,
+    RequestStatus,
+)
 from app.schema.expense import ExpenseLineItemCreate, ExpenseRequestCreate, ExpenseRequestUpdate
 
 
@@ -165,7 +171,12 @@ def duplicate_expense_request(
 
 
 def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
+    category = session.get(ExpenseCategory, expense.category_id)
     return {
         **expense.model_dump(),
-        "line_items": [line_item.model_dump() for line_item in _get_line_items(session, expense.id)],
+        "category_name": category.name if category else None,
+        "line_items": [
+            line_item.model_dump()
+            for line_item in _get_line_items(session, expense.id)
+        ],
     }

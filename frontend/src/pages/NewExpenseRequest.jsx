@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import Navbar from "../components/layouts/Navbar";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MAX_FILES = 3;
@@ -176,7 +177,7 @@ function SuccessScreen({ category, totalAmount, isDraft, onReset }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function NewExpenseRequest() {
+export default function NewExpenseRequest({ onNavigate }) {
   const { toasts, add: addToast, remove: removeToast } = useToast();
 
   // Form state
@@ -340,7 +341,12 @@ export default function NewExpenseRequest() {
 
   // ── Success screen ────────────────────────────────────────────────────────
   if (submitted) {
-    return <SuccessScreen category={category} totalAmount={totalAmount} isDraft={isDraft} onReset={handleReset} />;
+    return (
+      <>
+        <Navbar activePage="New Request" onNavigate={onNavigate} />
+        <SuccessScreen category={category} totalAmount={totalAmount} isDraft={isDraft} onReset={handleReset} />
+      </>
+    );
   }
 
   const isAnyLoading = loading || loadingDraft;
@@ -348,12 +354,19 @@ export default function NewExpenseRequest() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh", background: "#f0f4f8", fontFamily: "'Segoe UI', sans-serif" }}>
+      <Navbar activePage="New Request" onNavigate={onNavigate} />
       <Toast toasts={toasts} remove={removeToast} />
 
       {/* Header */}
       <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "0 32px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", padding: "18px 0" }}>
-          <button style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", marginRight: 16, fontSize: 20, lineHeight: 1, padding: 4 }}>←</button>
+          <button
+            type="button"
+            onClick={() => onNavigate?.("My Requests")}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b", marginRight: 16, fontSize: 20, lineHeight: 1, padding: 4 }}
+          >
+            ←
+          </button>
           <div>
             <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 700, color: "#0f172a" }}>New Expense Request</h1>
             <p style={{ margin: 0, fontSize: "13px", color: "#64748b", marginTop: 2 }}>Fill out the details below to submit a reimbursement.</p>
