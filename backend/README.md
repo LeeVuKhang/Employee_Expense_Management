@@ -29,6 +29,8 @@ Requests that act on employee-owned expenses expect an `X-User-Id` header.
 - `PUT /api/expenses/{expense_id}`
 - `PATCH /api/expenses/{expense_id}/cancel`
 - `POST /api/expenses/{expense_id}/duplicate`
+- `GET /api/manager/expense-requests/pending`
+- `GET /api/manager/expense-requests/pending/summary`
 
 The update and cancel APIs only allow requests in `Draft` or `Pending Manager`.
 Once a request is cancelled or processed into a later status, `is_locked` prevents further employee changes.

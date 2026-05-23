@@ -7,3 +7,4 @@ __pycache__/
 *.pyc
 EEM.sql
 context.md
+frontend/bun.lock

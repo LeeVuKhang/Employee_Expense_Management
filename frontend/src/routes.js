@@ -17,3 +17,8 @@ export const expenseApiRoutes = {
   cancel: (expenseId) => `/api/expenses/${expenseId}/cancel`,
   duplicate: (expenseId) => `/api/expenses/${expenseId}/duplicate`,
 }
+
+export const managerApiRoutes = {
+  pendingRequests: '/api/manager/expense-requests/pending',
+  pendingRequestsSummary: '/api/manager/expense-requests/pending/summary',
+}

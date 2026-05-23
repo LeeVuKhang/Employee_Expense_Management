@@ -5,6 +5,12 @@ from app.schema.expense import (
     ExpenseRequestRead,
     ExpenseRequestUpdate,
 )
+from app.schema.manager import (
+    ManagerPendingRequestRead,
+    ManagerPendingRequestsRead,
+    ManagerPendingSummaryRead,
+    PaginationRead,
+)
 
 __all__ = [
     "ExpenseLineItemCreate",
@@ -12,4 +18,8 @@ __all__ = [
     "ExpenseRequestCreate",
     "ExpenseRequestRead",
     "ExpenseRequestUpdate",
+    "ManagerPendingRequestRead",
+    "ManagerPendingRequestsRead",
+    "ManagerPendingSummaryRead",
+    "PaginationRead",
 ]

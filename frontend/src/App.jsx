@@ -8,6 +8,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { fetchExpenseRequest } from "./api/expenses";
+import ManagerPendingRequestsDashboard from "./components/requests/ManagerPendingRequestsDashboard";
 import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
 import FinancePage from "./pages/FinancePage";
 import MyRequests from "./pages/MyRequests";
@@ -163,6 +164,16 @@ function NewExpenseRequestRoute({ editMode = false }) {
   );
 }
 
+function ManagerPendingRequestsRoute() {
+  return (
+    <div className="app-shell">
+      <main className="page-frame">
+        <ManagerPendingRequestsDashboard />
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <Routes>
@@ -173,6 +184,8 @@ export default function App() {
       <Route path="/requests/:requestId/edit" element={<NewExpenseRequestRoute editMode />} />
       <Route path="/finance" element={<FinancePage />} />
       <Route path="/finance/request/:id" element={<RequestDetailPage />} />
+      <Route path="/manager" element={<Navigate to="/manager/pending-requests" replace />} />
+      <Route path="/manager/pending-requests" element={<ManagerPendingRequestsRoute />} />
       <Route path="*" element={<Navigate to="/my-requests" replace />} />
     </Routes>
   );

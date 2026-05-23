@@ -1,6 +1,8 @@
-import { expenseApiRoutes } from '../routes'
+import { expenseApiRoutes, managerApiRoutes } from '../routes'
 
 const CURRENT_USER_ID = import.meta.env.VITE_CURRENT_USER_ID ?? '4'
+const MANAGER_DASHBOARD_USER_ID = import.meta.env.VITE_MANAGER_USER_ID ?? '3'
+const PENDING_MANAGER_STATUS = 'Pending Manager'
 
 async function requestExpense(path, options = {}) {
   const { headers, userId = CURRENT_USER_ID, ...requestOptions } = options
@@ -13,18 +15,29 @@ async function requestExpense(path, options = {}) {
       ...headers,
     },
   })
+  const contentType = response.headers.get('content-type') ?? ''
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}))
+    const errorBody = contentType.includes('application/json')
+      ? await response.json().catch(() => ({}))
+      : {}
     const detail = Array.isArray(errorBody.detail)
       ? errorBody.detail[0]?.msg
       : errorBody.detail
-    throw new Error(
+    const error = new Error(
       errorBody.error ??
         errorBody.message ??
         detail ??
         `Request failed with ${response.status}`,
     )
+    error.status = response.status
+    throw error
+  }
+
+  if (!contentType.includes('application/json')) {
+    const error = new Error('Expense API did not return JSON.')
+    error.code = 'NON_JSON_RESPONSE'
+    throw error
   }
 
   return response.json()
@@ -33,6 +46,31 @@ async function requestExpense(path, options = {}) {
 export async function fetchExpenseRequests(userId = CURRENT_USER_ID) {
   const expenses = await requestExpense(expenseApiRoutes.list, { userId })
   return (expenses ?? []).map(toExpenseViewModel)
+}
+
+export async function fetchManagerPendingRequests(userId = MANAGER_DASHBOARD_USER_ID) {
+  const params = new URLSearchParams({
+    page: '1',
+    page_size: '20',
+    sort: 'created_at',
+    order: 'desc',
+  })
+  const response = await requestExpense(`${managerApiRoutes.pendingRequests}?${params}`, {
+    userId,
+  })
+  return normalizeManagerPendingRequests(response.requests ?? [])
+}
+
+export async function fetchManagerPendingRequestsSummary(userId = MANAGER_DASHBOARD_USER_ID) {
+  const response = await requestExpense(managerApiRoutes.pendingRequestsSummary, {
+    userId,
+  })
+
+  return {
+    pendingCount: Number(response.pending_count ?? response.pendingCount ?? 0),
+    totalAmount: Number(response.total_amount ?? response.totalAmount ?? 0),
+    currency: response.currency ?? 'USD',
+  }
 }
 
 export async function fetchExpenseRequest(expenseId, userId = CURRENT_USER_ID) {
@@ -135,6 +173,41 @@ function summarizeLineItems(lineItems, rejectionReason) {
 
 function toDateOnly(value) {
   return value?.slice(0, 10)
+}
+
+function normalizeManagerPendingRequests(requests) {
+  return requests
+    .map(toManagerPendingRequestViewModel)
+    .filter((request) => request.status === PENDING_MANAGER_STATUS)
+    .sort((firstRequest, secondRequest) =>
+      secondRequest.createdDate.localeCompare(firstRequest.createdDate),
+    )
+}
+
+function toManagerPendingRequestViewModel(request) {
+  return {
+    id: String(request.id),
+    employeeName:
+      request.employee_name ??
+      request.employeeName ??
+      request.employee ??
+      `Employee #${request.employee_id ?? request.employeeId ?? 'Unknown'}`,
+    employeeId: request.employee_id ?? request.employeeId,
+    currentProcessorId: request.current_processor_id ?? request.currentProcessorId,
+    requestType:
+      request.request_type ??
+      request.requestType ??
+      request.category_name ??
+      request.category ??
+      `Category #${request.category_id ?? request.categoryId ?? 'Unknown'}`,
+    amount: Number(request.total_amount ?? request.totalAmount ?? request.amount ?? 0),
+    createdDate:
+      toDateOnly(request.created_at ?? request.createdDate ?? request.submittedOn) ??
+      request.start_date ??
+      '',
+    status: request.status,
+    currency: request.currency ?? 'USD',
+  }
 }
 
 function toExpenseApiPayload(expense, options = {}) {
