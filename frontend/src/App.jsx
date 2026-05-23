@@ -8,6 +8,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { fetchExpenseRequest } from "./api/expenses";
+import Navbar from "./components/layouts/Navbar";
 import ManagerPendingRequestsDashboard from "./components/requests/ManagerPendingRequestsDashboard";
 import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
 import FinancePage from "./pages/FinancePage";
@@ -19,6 +20,7 @@ import "./App.css";
 const NEW_REQUEST_PAGE = "New Request";
 const MY_REQUESTS_PAGE = "My Requests";
 const REQUEST_DETAIL_PAGE = "Request Detail";
+const MANAGER_PENDING_PAGE = "Manager Pending";
 
 function pathForPage(page, options = {}) {
   if (page === NEW_REQUEST_PAGE) {
@@ -32,6 +34,10 @@ function pathForPage(page, options = {}) {
   if (page === REQUEST_DETAIL_PAGE) {
     const requestId = options.request?.id ?? options.requestId;
     return requestId ? `/requests/${requestId}` : "/my-requests";
+  }
+
+  if (page === MANAGER_PENDING_PAGE) {
+    return "/manager/pending-requests";
   }
 
   return "/my-requests";
@@ -165,8 +171,11 @@ function NewExpenseRequestRoute({ editMode = false }) {
 }
 
 function ManagerPendingRequestsRoute() {
+  const navigate = usePageNavigation();
+
   return (
     <div className="app-shell">
+      <Navbar activePage={MANAGER_PENDING_PAGE} onNavigate={navigate} />
       <main className="page-frame">
         <ManagerPendingRequestsDashboard />
       </main>

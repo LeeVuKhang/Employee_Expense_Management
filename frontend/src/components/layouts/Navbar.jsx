@@ -6,6 +6,7 @@ import { NavLink } from "react-router-dom";
 const DEFAULT_NAV_ITEMS = [
   { label: "My Requests", href: "/my-requests" },
   { label: "New Request", href: "/new-request" },
+  { label: "Manager Pending", href: "/manager/pending-requests" },
 ];
 
 export default function Navbar({
