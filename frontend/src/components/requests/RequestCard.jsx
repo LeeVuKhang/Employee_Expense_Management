@@ -2,10 +2,21 @@
 import { useState } from "react";
 import StatusBadge from "./StatusBadge";
 
+function displayRequestId(id) {
+  const value = String(id ?? "");
+  return value.startsWith("#") || value.startsWith("REQ-") ? value : `#${value}`;
+}
+
 export default function RequestCard({ request, onClick }) {
   const [hovered, setHovered] = useState(false);
   const sameDay = request.tripDateFrom === request.tripDateTo;
-  const dateRange = sameDay ? request.tripDateFrom : `${request.tripDateFrom} → ${request.tripDateTo}`;
+  const dateRange = sameDay ? request.tripDateFrom : `${request.tripDateFrom} -> ${request.tripDateTo}`;
+  const isFinanceRequest = Boolean(request.employeeName);
+  const avatarSource = request.employeeName ?? request.category ?? "U";
+  const primaryLabel = isFinanceRequest ? request.employeeName : displayRequestId(request.id);
+  const secondaryLabel = isFinanceRequest ? displayRequestId(request.id) : request.category;
+  const detailLabel = isFinanceRequest ? request.category : dateRange;
+  const amount = Number(request.amount ?? 0);
 
   return (
     <div
@@ -28,30 +39,32 @@ export default function RequestCard({ request, onClick }) {
         gap: 16,
       }}
     >
-      {/* Left */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 16, minWidth: 0 }}>
         <div style={{ width: 46, height: 46, borderRadius: "50%", backgroundColor: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#475569", flexShrink: 0 }}>
-          {request.category ? request.category.charAt(0) : "U"}
+          {avatarSource.charAt(0)}
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>#{request.id}</span>
-            <span style={{ color: "#D1D5DB", fontSize: 12 }}>•</span>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>{request.category}</span>
+            <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>{primaryLabel}</span>
+            <span style={{ color: "#D1D5DB", fontSize: 12 }}>-</span>
+            <span style={{ fontSize: 14, color: "#6B7280" }}>{secondaryLabel}</span>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>{dateRange}</span>
-            <span style={{ color: "#D1D5DB", fontSize: 12 }}>•</span>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>Submitted {new Date(request.submittedDate).toLocaleDateString("en-US")}</span>
+            <span style={{ fontSize: 14, color: "#6B7280" }}>{detailLabel}</span>
+            <span style={{ color: "#D1D5DB", fontSize: 12 }}>-</span>
+            <span style={{ fontSize: 14, color: "#6B7280" }}>
+              Submitted {new Date(request.submittedDate).toLocaleDateString("en-US")}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Right */}
       <div style={{ display: "flex", alignItems: "center", gap: 24, flexShrink: 0 }}>
-        <span style={{ fontWeight: 800, fontSize: 18, color: "#111827", fontFamily: "'Inter', sans-serif" }}>${request.amount.toFixed(2)}</span>
+        <span style={{ fontWeight: 800, fontSize: 18, color: "#111827", fontFamily: "'Inter', sans-serif" }}>
+          ${amount.toFixed(2)}
+        </span>
         <StatusBadge status={request.status} />
-        <span style={{ color: "#9CA3AF", fontSize: 20 }}>→</span>
+        <span style={{ color: "#9CA3AF", fontSize: 20 }}>-&gt;</span>
       </div>
     </div>
   );

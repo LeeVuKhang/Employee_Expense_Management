@@ -9,8 +9,10 @@ import {
 } from "react-router-dom";
 import { fetchExpenseRequest } from "./api/expenses";
 import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
+import FinancePage from "./pages/FinancePage";
 import MyRequests from "./pages/MyRequests";
 import NewExpenseRequest from "./pages/NewExpenseRequest";
+import RequestDetailPage from "./pages/RequestDetailPage";
 import "./App.css";
 
 const NEW_REQUEST_PAGE = "New Request";
@@ -169,6 +171,8 @@ export default function App() {
       <Route path="/new-request" element={<NewExpenseRequestRoute />} />
       <Route path="/requests/:requestId" element={<ExpenseRequestDetailRoute />} />
       <Route path="/requests/:requestId/edit" element={<NewExpenseRequestRoute editMode />} />
+      <Route path="/finance" element={<FinancePage />} />
+      <Route path="/finance/request/:id" element={<RequestDetailPage />} />
       <Route path="*" element={<Navigate to="/my-requests" replace />} />
     </Routes>
   );
