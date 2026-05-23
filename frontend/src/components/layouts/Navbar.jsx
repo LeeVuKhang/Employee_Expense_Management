@@ -1,6 +1,8 @@
 // components/layout/Navbar.jsx
 // Sticky top navigation bar — standalone component
 
+import { NavLink } from "react-router-dom";
+
 const DEFAULT_NAV_ITEMS = [
   { label: "My Requests", href: "/my-requests" },
   { label: "New Request", href: "/new-request" },
@@ -60,47 +62,48 @@ export default function Navbar({
 
       {/* Nav links */}
       <div style={{ display: "flex", gap: 4 }}>
-        {navItems.map(({ label, href }) => {
-          const isActive = label === activePage;
-          return (
-            <button
-              key={label}
-              type="button"
-              onClick={() => {
-                if (onNavigate) {
-                  onNavigate(label);
-                  return;
-                }
-                window.location.href = href;
-              }}
-              style={{
+        {navItems.map(({ label, href }) => (
+          <NavLink
+            key={label}
+            to={href}
+            onClick={(event) => {
+              if (onNavigate) {
+                event.preventDefault();
+                onNavigate(label);
+              }
+            }}
+            style={({ isActive }) => {
+              const active = isActive || label === activePage;
+
+              return {
                 padding: "6px 16px",
                 borderRadius: 8,
                 border: "none",
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
-                backgroundColor: isActive ? "#EFF6FF" : "transparent",
-                color: isActive ? "#2563EB" : "#6B7280",
+                backgroundColor: active ? "#EFF6FF" : "transparent",
+                color: active ? "#2563EB" : "#6B7280",
+                textDecoration: "none",
                 transition: "all 0.15s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = "#F3F4F6";
-                  e.currentTarget.style.color = "#374151";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "#6B7280";
-                }
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
+              };
+            }}
+            onMouseEnter={(e) => {
+              if (label !== activePage) {
+                e.currentTarget.style.backgroundColor = "#F3F4F6";
+                e.currentTarget.style.color = "#374151";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (label !== activePage) {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "#6B7280";
+              }
+            }}
+          >
+            {label}
+          </NavLink>
+        ))}
       </div>
 
       {/* User avatar */}

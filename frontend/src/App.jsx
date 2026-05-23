@@ -1,4 +1,13 @@
 import { useEffect, useState } from "react";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import { fetchExpenseRequest } from "./api/expenses";
 import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
 import MyRequests from "./pages/MyRequests";
 import NewExpenseRequest from "./pages/NewExpenseRequest";
@@ -8,110 +17,159 @@ const NEW_REQUEST_PAGE = "New Request";
 const MY_REQUESTS_PAGE = "My Requests";
 const REQUEST_DETAIL_PAGE = "Request Detail";
 
-function requestIdFromPath() {
-  const match = window.location.pathname.match(/^\/requests\/([^/]+)$/);
-  return match?.[1] ?? null;
-}
-
-function pageFromPath() {
-  const pathname = window.location.pathname.toLowerCase();
-  if (pathname.includes("new-request")) return NEW_REQUEST_PAGE;
-  if (requestIdFromPath()) return REQUEST_DETAIL_PAGE;
-  return MY_REQUESTS_PAGE;
-}
-
 function pathForPage(page, options = {}) {
-  if (page === NEW_REQUEST_PAGE) return "/new-request";
+  if (page === NEW_REQUEST_PAGE) {
+    if (options.mode === "edit" && options.request?.id) {
+      return `/requests/${options.request.id}/edit`;
+    }
+
+    return "/new-request";
+  }
+
   if (page === REQUEST_DETAIL_PAGE) {
     const requestId = options.request?.id ?? options.requestId;
     return requestId ? `/requests/${requestId}` : "/my-requests";
   }
+
   return "/my-requests";
 }
 
-export default function App() {
-  const [activePage, setActivePage] = useState(pageFromPath);
-  const [detailContext, setDetailContext] = useState({
-    request: null,
-    requestId: requestIdFromPath(),
-  });
-  const [requestFormContext, setRequestFormContext] = useState({
-    mode: "create",
-    request: null,
-  });
+function usePageNavigation() {
+  const routerNavigate = useNavigate();
+
+  return (page, options = {}) => {
+    routerNavigate(pathForPage(page, options), {
+      replace: Boolean(options.replace),
+      state: {
+        mode: options.mode,
+        request: options.request ?? null,
+      },
+    });
+  };
+}
+
+function RouteFeedback({ type = "status", children }) {
+  return (
+    <div className="app-shell">
+      <main className="page-frame">
+        <div
+          className={`card feedback-card${type === "error" ? " error-state" : ""}`}
+          role={type === "error" ? "alert" : "status"}
+        >
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function MyRequestsRoute() {
+  const navigate = usePageNavigation();
+  return <MyRequests onNavigate={navigate} />;
+}
+
+function ExpenseRequestDetailRoute() {
+  const navigate = usePageNavigation();
+  const location = useLocation();
+  const { requestId } = useParams();
+  const initialRequest = location.state?.request ?? null;
+
+  return (
+    <ExpenseRequestDetail
+      key={initialRequest?.id ?? requestId ?? "missing"}
+      initialRequest={initialRequest}
+      onNavigate={navigate}
+      requestId={requestId}
+    />
+  );
+}
+
+function NewExpenseRequestRoute({ editMode = false }) {
+  const navigate = usePageNavigation();
+  const location = useLocation();
+  const { requestId } = useParams();
+  const routeRequest = editMode ? location.state?.request ?? null : null;
+  const [fetchedRequest, setFetchedRequest] = useState(null);
+  const [loading, setLoading] = useState(editMode && !routeRequest);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const handlePopState = () => {
-      setActivePage(pageFromPath());
-      setDetailContext({
-        request: null,
-        requestId: requestIdFromPath(),
-      });
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+    let ignore = false;
 
-  const navigate = (page, options = {}) => {
-    setActivePage(page);
-    setDetailContext(
-      page === REQUEST_DETAIL_PAGE
-        ? {
-            request: options.request ?? null,
-            requestId: options.request?.id ?? options.requestId ?? null,
-          }
-        : {
-            request: null,
-            requestId: null,
-          }
-    );
-    setRequestFormContext(
-      page === NEW_REQUEST_PAGE
-        ? {
-            mode: options.mode ?? "create",
-            request: options.request ?? null,
-          }
-        : {
-            mode: "create",
-            request: null,
-          }
-    );
+    async function loadEditableRequest() {
+      setError(null);
 
-    const nextPath = pathForPage(page, options);
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState(null, "", nextPath);
+      if (!editMode) {
+        setFetchedRequest(null);
+        setLoading(false);
+        return;
+      }
+
+      if (routeRequest) {
+        setFetchedRequest(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!requestId) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const request = await fetchExpenseRequest(requestId);
+        if (!ignore) setFetchedRequest(request);
+      } catch (err) {
+        if (!ignore) setError(err.message);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
     }
-  };
 
-  if (activePage === NEW_REQUEST_PAGE) {
-    return (
-      <NewExpenseRequest
-        key={`${requestFormContext.mode}-${requestFormContext.request?.id ?? "new"}`}
-        initialRequest={requestFormContext.request}
-        mode={requestFormContext.mode}
-        onNavigate={navigate}
-        onSaved={(savedRequest) => {
-          if (requestFormContext.mode === "edit") {
-            navigate(REQUEST_DETAIL_PAGE, { request: savedRequest });
-            return;
-          }
+    loadEditableRequest();
+    return () => { ignore = true; };
+  }, [editMode, requestId, routeRequest]);
 
-          navigate(MY_REQUESTS_PAGE);
-        }}
-      />
-    );
+  if (loading) {
+    return <RouteFeedback>Loading expense request...</RouteFeedback>;
   }
 
-  if (activePage === REQUEST_DETAIL_PAGE) {
-    return (
-      <ExpenseRequestDetail
-        key={detailContext.request?.id ?? detailContext.requestId ?? "missing"}
-        initialRequest={detailContext.request}
-        onNavigate={navigate}
-        requestId={detailContext.requestId}
-      />
-    );
+  if (error) {
+    return <RouteFeedback type="error">{error}</RouteFeedback>;
   }
 
-  return <MyRequests onNavigate={navigate} />;
+  const initialRequest = routeRequest ?? fetchedRequest;
+  const mode = editMode ? "edit" : "create";
+
+  return (
+    <NewExpenseRequest
+      key={`${mode}-${initialRequest?.id ?? "new"}`}
+      initialRequest={initialRequest}
+      mode={mode}
+      onNavigate={navigate}
+      onSaved={(savedRequest) => {
+        if (mode === "edit") {
+          navigate(REQUEST_DETAIL_PAGE, { request: savedRequest });
+          return;
+        }
+
+        navigate(MY_REQUESTS_PAGE);
+      }}
+    />
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/my-requests" replace />} />
+      <Route path="/my-requests" element={<MyRequestsRoute />} />
+      <Route path="/new-request" element={<NewExpenseRequestRoute />} />
+      <Route path="/requests/:requestId" element={<ExpenseRequestDetailRoute />} />
+      <Route path="/requests/:requestId/edit" element={<NewExpenseRequestRoute editMode />} />
+      <Route path="*" element={<Navigate to="/my-requests" replace />} />
+    </Routes>
+  );
 }
