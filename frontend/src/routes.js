@@ -21,4 +21,5 @@ export const expenseApiRoutes = {
 export const managerApiRoutes = {
   pendingRequests: '/api/manager/expense-requests/pending',
   pendingRequestsSummary: '/api/manager/expense-requests/pending/summary',
+  requestStatus: (expenseId) => `/api/manager/requests/${expenseId}/status`,
 }

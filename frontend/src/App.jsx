@@ -13,6 +13,7 @@ import ManagerPendingRequestsDashboard from "./components/requests/ManagerPendin
 import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
 import FinancePage from "./pages/FinancePage";
 import LoginPage from "./pages/LoginPage";
+import ManagerRequestDetail from "./pages/ManagerRequestDetail";
 import MyRequests from "./pages/MyRequests";
 import NewExpenseRequest from "./pages/NewExpenseRequest";
 import RequestDetailPage from "./pages/RequestDetailPage";
@@ -254,6 +255,10 @@ export default function App() {
       <Route
         path="/manager/pending-requests"
         element={protect(<ManagerPendingRequestsRoute />)}
+      />
+      <Route
+        path="/manager/requests/:requestId"
+        element={protect(<ManagerRequestDetail />)}
       />
       <Route
         path="*"

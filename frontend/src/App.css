@@ -869,6 +869,7 @@
 }
 
 .primary-button,
+.approve-button,
 .secondary-button,
 .danger-button {
   min-height: 50px;
@@ -884,6 +885,17 @@
   border: 1px solid var(--color-primary-blue);
   background: var(--color-primary-blue);
   color: #ffffff;
+}
+
+.approve-button {
+  border: 1px solid #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.approve-button:hover {
+  border-color: #15803d;
+  background: #15803d;
 }
 
 .secondary-button {
@@ -930,12 +942,14 @@
 
 .secondary-button:hover,
 .primary-button:hover,
+.approve-button:hover,
 .danger-button:hover {
   filter: brightness(0.98);
   transform: translateY(-1px);
 }
 
 .primary-button:disabled,
+.approve-button:disabled,
 .secondary-button:disabled,
 .danger-button:disabled {
   cursor: not-allowed;
