@@ -317,8 +317,14 @@
   width: min(1180px, 100% - 64px);
 }
 
+.finance-page-frame,
+.finance-detail-frame {
+  width: min(1280px, 100% - 64px);
+}
+
 .content-stack,
-.manager-dashboard {
+.manager-dashboard,
+.finance-dashboard {
   display: grid;
   gap: 28px;
 }
@@ -351,7 +357,8 @@
 
 .detail-heading h1,
 .page-title-row h1,
-.manager-dashboard-heading h1 {
+.manager-dashboard-heading h1,
+.finance-dashboard-heading h1 {
   margin: 0;
   color: #06132d;
   font-size: 38px;
@@ -363,6 +370,7 @@
 .detail-heading p,
 .page-title-row p,
 .manager-dashboard-heading p,
+.finance-dashboard-heading p,
 .muted {
   color: #50658b;
   font-size: 18px;
@@ -639,6 +647,147 @@
   line-height: 1;
 }
 
+.finance-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  gap: 20px;
+}
+
+.finance-summary-card {
+  display: grid;
+  min-height: 142px;
+  align-content: center;
+  gap: 10px;
+}
+
+.finance-summary-card span {
+  color: #059669;
+  font-weight: 800;
+}
+
+.finance-summary-card strong {
+  color: #064e3b;
+  font-size: clamp(34px, 3vw, 48px);
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.finance-summary-card-emerald {
+  border-color: #d1fae5;
+  background: #ecfdf5;
+}
+
+.finance-summary-card-dark {
+  border-color: #1e293b;
+  background: #1e293b;
+  color: #ffffff;
+}
+
+.finance-summary-card-dark span {
+  color: #cbd5e1;
+}
+
+.finance-summary-card-dark strong {
+  color: #ffffff;
+}
+
+.finance-request-list {
+  display: grid;
+  gap: 14px;
+}
+
+.finance-request-card {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid transparent;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: var(--transition-hover);
+}
+
+.finance-request-card:hover {
+  border-color: #bfdbfe;
+  border-left-color: #2563eb;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.09);
+  transform: translateY(-2px);
+}
+
+.finance-request-card:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.22);
+  outline-offset: 2px;
+}
+
+.finance-request-avatar {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.finance-request-main {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.finance-request-title-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.finance-request-title-row strong {
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.finance-request-title-row span,
+.finance-request-subtitle {
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.finance-request-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  color: #0f172a;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.finance-request-side .status-badge-wrap {
+  width: 150px;
+  align-items: flex-end;
+}
+
+.finance-request-arrow {
+  color: #64748b;
+  font-size: 22px;
+  line-height: 1;
+}
+
 .line-items-table {
   width: 100%;
   border-collapse: collapse;
@@ -758,6 +907,24 @@
 .manager-action-reject {
   border-color: #ef4444;
   background: #ef4444;
+  color: #ffffff;
+}
+
+.finance-action-approve {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.finance-action-decline {
+  border-color: #ef4444;
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.finance-action-paid {
+  border-color: #2563eb;
+  background: #2563eb;
   color: #ffffff;
 }
 
@@ -2234,7 +2401,15 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .finance-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .manager-summary-card {
+    min-height: 118px;
+  }
+
+  .finance-summary-card {
     min-height: 118px;
   }
 
@@ -2247,6 +2422,22 @@ button:focus-visible {
     grid-column: 2;
     justify-content: space-between;
     width: 100%;
+  }
+
+  .finance-request-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .finance-request-side {
+    grid-column: 2;
+    justify-content: space-between;
+    width: 100%;
+    white-space: normal;
+  }
+
+  .finance-request-side .status-badge-wrap {
+    width: auto;
   }
 
   .employee-stats-grid {

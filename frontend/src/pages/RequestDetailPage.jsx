@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Navbar from "../components/layouts/Navbar";
 
-const APPROVED_STATUS = "Finance Approved";
-const FINAL_STATUSES = new Set([APPROVED_STATUS, "Paid", "Rejected", "Cancelled"]);
+const FINANCE_APPROVED_STATUS = "Finance Approved";
+const PAID_STATUS = "Paid";
+const REJECTED_STATUS = "Rejected";
+const CLOSED_STATUSES = new Set([PAID_STATUS, REJECTED_STATUS, "Cancelled"]);
 
 export default function RequestDetailPage() {
   const { id } = useParams();
@@ -13,9 +15,9 @@ export default function RequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [rejectReasonError, setRejectReasonError] = useState("");
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [declineReasonError, setDeclineReasonError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -77,18 +79,11 @@ export default function RequestDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || "Failed to update request status.");
+        throw new Error(readApiError(errorData) || "Failed to update request status.");
       }
 
       const updated = await response.json();
-      setRequest((previous) => ({
-        ...previous,
-        status: updated.status ?? status,
-        rejectionReason: updated.rejection_reason ?? rejectionReason ?? previous.rejectionReason,
-        isLocked: Boolean(updated.is_locked ?? previous.isLocked),
-        updatedDate: updated.updated_at ?? previous.updatedDate,
-      }));
-
+      setRequest(toRequestViewModel(updated));
       return true;
     } catch (error) {
       setActionError(error.message);
@@ -98,36 +93,40 @@ export default function RequestDetailPage() {
     }
   }
 
-  async function handleApprove() {
-    await updateRequestStatus(APPROVED_STATUS);
+  async function handleFinanceApprove() {
+    await updateRequestStatus(FINANCE_APPROVED_STATUS);
   }
 
-  async function handleReject() {
-    const reason = rejectReason.trim();
+  async function handleMarkAsPaid() {
+    await updateRequestStatus(PAID_STATUS);
+  }
+
+  async function handleDecline() {
+    const reason = declineReason.trim();
     if (!reason) {
-      setRejectReasonError("Rejection reason is required.");
+      setDeclineReasonError("Decline reason is required.");
       return;
     }
 
-    const updated = await updateRequestStatus("Rejected", reason);
+    const updated = await updateRequestStatus(REJECTED_STATUS, reason);
     if (updated) {
-      setShowRejectModal(false);
-      setRejectReason("");
-      setRejectReasonError("");
+      setShowDeclineModal(false);
+      setDeclineReason("");
+      setDeclineReasonError("");
     }
   }
 
-  function openRejectModal() {
-    setRejectReason("");
-    setRejectReasonError("");
-    setShowRejectModal(true);
+  function openDeclineModal() {
+    setDeclineReason("");
+    setDeclineReasonError("");
+    setShowDeclineModal(true);
   }
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Manager Pending" role="Manager" />
+      <Navbar activePage="Finance Approvals" role="Finance" />
 
-      <main className="page-frame manager-detail-frame">
+      <main className="page-frame finance-detail-frame">
         {loading && (
           <div className="card dashboard-state" role="status">
             Loading request details...
@@ -141,20 +140,20 @@ export default function RequestDetailPage() {
             <button
               className="secondary-button"
               type="button"
-              onClick={() => navigate("/manager/pending-requests")}
+              onClick={() => navigate("/finance")}
             >
-              Back to Team Requests
+              Back to Finance Queue
             </button>
           </div>
         )}
 
         {!loading && !loadError && request && (
           <>
-            <div className="detail-heading manager-detail-heading">
+            <div className="detail-heading finance-detail-heading">
               <button
                 className="back-button"
                 type="button"
-                onClick={() => navigate("/manager/pending-requests")}
+                onClick={() => navigate("/finance")}
               >
                 Back
               </button>
@@ -170,7 +169,7 @@ export default function RequestDetailPage() {
                 </p>
               </div>
 
-              <span className="processor-pill">Current Processor: Manager</span>
+              <span className="processor-pill">Current Processor: Finance</span>
             </div>
 
             <div className="detail-grid">
@@ -263,31 +262,13 @@ export default function RequestDetailPage() {
                     </div>
                   )}
 
-                  {FINAL_STATUSES.has(request.status) ? (
-                    <div className="readonly-state">
-                      <strong>No manager action available.</strong>
-                      <span>This request is currently {request.status}.</span>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        className="primary-button manager-action-approve"
-                        type="button"
-                        onClick={handleApprove}
-                        disabled={submitting}
-                      >
-                        {submitting ? "Approving..." : "Approve Request"}
-                      </button>
-                      <button
-                        className="danger-button manager-action-reject"
-                        type="button"
-                        onClick={openRejectModal}
-                        disabled={submitting}
-                      >
-                        Reject Request
-                      </button>
-                    </>
-                  )}
+                  <FinanceActions
+                    status={request.status}
+                    submitting={submitting}
+                    onApprove={handleFinanceApprove}
+                    onDecline={openDeclineModal}
+                    onMarkPaid={handleMarkAsPaid}
+                  />
                 </section>
 
                 <section className="card timeline-card">
@@ -307,38 +288,38 @@ export default function RequestDetailPage() {
         )}
       </main>
 
-      {showRejectModal && (
+      {showDeclineModal && (
         <div
           className="modal-backdrop"
           role="presentation"
-          onClick={() => setShowRejectModal(false)}
+          onClick={() => setShowDeclineModal(false)}
         >
           <div
             className="modal reject-reason-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="reject-request-title"
+            aria-labelledby="decline-request-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 id="reject-request-title">Reject Request</h2>
-            <p>Enter a rejection reason before sending this request back.</p>
+            <h2 id="decline-request-title">Decline Request</h2>
+            <p>Enter a decline reason before returning this request.</p>
 
             <label className="reject-reason-label">
               Reason
               <textarea
                 className="reject-reason-textarea"
-                value={rejectReason}
+                value={declineReason}
                 onChange={(event) => {
-                  setRejectReason(event.target.value);
-                  if (rejectReasonError) setRejectReasonError("");
+                  setDeclineReason(event.target.value);
+                  if (declineReasonError) setDeclineReasonError("");
                 }}
-                placeholder="Enter rejection reason..."
+                placeholder="Enter decline reason..."
               />
             </label>
 
-            {rejectReasonError && (
+            {declineReasonError && (
               <p className="modal-error-text" role="alert">
-                {rejectReasonError}
+                {declineReasonError}
               </p>
             )}
 
@@ -346,23 +327,68 @@ export default function RequestDetailPage() {
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => setShowRejectModal(false)}
+                onClick={() => setShowDeclineModal(false)}
               >
                 Cancel
               </button>
               <button
                 className="danger-button"
                 type="button"
-                onClick={handleReject}
-                disabled={submitting || !rejectReason.trim()}
+                onClick={handleDecline}
+                disabled={submitting || !declineReason.trim()}
               >
-                {submitting ? "Rejecting..." : "Confirm Reject"}
+                {submitting ? "Declining..." : "Confirm Decline"}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function FinanceActions({ status, submitting, onApprove, onDecline, onMarkPaid }) {
+  if (status === FINANCE_APPROVED_STATUS) {
+    return (
+      <button
+        className="primary-button finance-action-paid"
+        type="button"
+        onClick={onMarkPaid}
+        disabled={submitting}
+      >
+        {submitting ? "Marking as Paid..." : "Mark as Paid"}
+      </button>
+    );
+  }
+
+  if (CLOSED_STATUSES.has(status)) {
+    return (
+      <div className="readonly-state">
+        <strong>No finance action available.</strong>
+        <span>This request is currently {status}.</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        className="primary-button finance-action-approve"
+        type="button"
+        onClick={onApprove}
+        disabled={submitting}
+      >
+        {submitting ? "Approving..." : "Finance Approve"}
+      </button>
+      <button
+        className="danger-button finance-action-decline"
+        type="button"
+        onClick={onDecline}
+        disabled={submitting}
+      >
+        Decline Request
+      </button>
+    </>
   );
 }
 
@@ -426,21 +452,60 @@ function getTimelineEvents(request) {
     },
     {
       title: "Manager Review",
-      date:
-        request.status === "Pending Manager"
-          ? "Pending"
-          : formatDate(request.updatedDate || request.submittedDate),
+      date: "Approved",
     },
   ];
 
-  if (request.rejectionReason) {
+  if (request.status === "Pending Finance") {
     events.push({
-      title: "Rejected",
-      date: request.rejectionReason,
+      title: "Finance Review",
+      date: "Awaiting finance action",
     });
+    return events;
   }
 
+  if (request.status === FINANCE_APPROVED_STATUS) {
+    events.push({
+      title: "Finance Review",
+      date: "Approved",
+    });
+    return events;
+  }
+
+  if (request.status === PAID_STATUS) {
+    events.push(
+      {
+        title: "Finance Review",
+        date: "Approved",
+      },
+      {
+        title: "Payment",
+        date: "Paid",
+      },
+    );
+    return events;
+  }
+
+  if (request.status === REJECTED_STATUS) {
+    events.push({
+      title: "Finance Review",
+      date: request.rejectionReason || "Declined",
+    });
+    return events;
+  }
+
+  events.push({
+    title: "Finance Review",
+    date: request.status,
+  });
   return events;
+}
+
+function readApiError(errorData) {
+  const detail = errorData.detail;
+  if (Array.isArray(detail)) return detail[0]?.msg;
+  if (typeof detail === "string") return detail;
+  return errorData.error ?? errorData.message;
 }
 
 function formatRequestId(id) {
@@ -456,12 +521,12 @@ function formatCurrency(value, currency = "USD") {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
-    }).format(value);
+    }).format(Number(value ?? 0));
   } catch {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-    }).format(value);
+    }).format(Number(value ?? 0));
   }
 }
 
