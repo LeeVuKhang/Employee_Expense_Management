@@ -33,14 +33,6 @@ function formatDate(value) {
   return `${Number(day)}/${Number(month)}/${year}`;
 }
 
-function BackIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  );
-}
-
 function FieldValue({ label, value }) {
   return (
     <div>
@@ -199,8 +191,7 @@ export default function ExpenseRequestDetail({
                   type="button"
                   onClick={() => onNavigate?.("My Requests")}
                 >
-                  <BackIcon />
-                  <span className="sr-only">Back to requests</span>
+                  Back
                 </button>
 
                 <div>
