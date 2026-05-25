@@ -1,16 +1,9 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import Navbar from "../components/layouts/Navbar";
 
-function Card({ children, title, subtitle }) {
-  return (
-    <div style={{ backgroundColor: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-      {title && <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", margin: "0 0 4px 0", letterSpacing: "-0.3px" }}>{title}</h2>}
-      {subtitle && <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 20px 0" }}>{subtitle}</p>}
-      {!subtitle && title && <div style={{ marginBottom: 20 }} />}
-      {children}
-    </div>
-  );
-}
+const APPROVED_STATUS = "Finance Approved";
+const FINAL_STATUSES = new Set([APPROVED_STATUS, "Paid", "Rejected", "Cancelled"]);
 
 export default function RequestDetailPage() {
   const { id } = useParams();
@@ -18,436 +11,352 @@ export default function RequestDetailPage() {
 
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [showDeclineModal, setShowDeclineModal] = useState(false);
-  const [declineReason, setDeclineReason] = useState("");
+  const [loadError, setLoadError] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectReasonError, setRejectReasonError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || "";
-    fetch(`${apiBase}/api/finance/requests/${id}`, {
-      headers: {
-        "X-User-Id": "2" // Finance Manager User ID
-      }
-    })
-      .then(async res => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Không thể tải thông tin chi tiết yêu cầu thanh toán (${res.status}): ${text}`);
-        }
-        return res.json();
-      })
-      .then(fetchedData => {
-        // Map backend fields to frontend model
-        setRequest({
-          id: `#${fetchedData.id}`,
-          employeeName: fetchedData.employee_name,
-          category: fetchedData.category_name,
-          submittedDate: fetchedData.created_at,
-          amount: parseFloat(fetchedData.total_amount),
-          status: fetchedData.status,
-          tripDateFrom: fetchedData.start_date,
-          tripDateTo: fetchedData.end_date,
-          line_items: fetchedData.line_items || []
+    let isCurrent = true;
+
+    async function loadRequest() {
+      const apiBase = import.meta.env.VITE_API_URL || "";
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        const response = await fetch(`${apiBase}/api/finance/requests/${id}`, {
+          headers: {
+            "X-User-Id": "2",
+          },
         });
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(`Unable to load request details (${response.status}): ${message}`);
+        }
+
+        const fetchedData = await response.json();
+        if (isCurrent) {
+          setRequest(toRequestViewModel(fetchedData));
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setLoadError(error.message);
+        }
+      } finally {
+        if (isCurrent) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadRequest();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [id]);
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", display: "flex", justifyContent: "center", alignItems: "center", fontFamily: "'Inter', sans-serif" }}>
-        <div style={{ color: "#6B7280", fontSize: 16 }}>Đang tải thông tin chi tiết...</div>
-      </div>
-    );
+  async function updateRequestStatus(status, rejectionReason = null) {
+    setSubmitting(true);
+    setActionError(null);
+
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || "";
+      const response = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": "2",
+        },
+        body: JSON.stringify({ status, rejection_reason: rejectionReason }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || "Failed to update request status.");
+      }
+
+      const updated = await response.json();
+      setRequest((previous) => ({
+        ...previous,
+        status: updated.status ?? status,
+        rejectionReason: updated.rejection_reason ?? rejectionReason ?? previous.rejectionReason,
+        isLocked: Boolean(updated.is_locked ?? previous.isLocked),
+        updatedDate: updated.updated_at ?? previous.updatedDate,
+      }));
+
+      return true;
+    } catch (error) {
+      setActionError(error.message);
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  if (error) {
-    return (
-      <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", fontFamily: "'Inter', sans-serif", gap: 16 }}>
-        <div style={{ color: "#DC2626", fontSize: 16 }}>Lỗi: {error}</div>
-        <button
-          onClick={() => navigate("/finance")}
-          style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #E5E7EB", backgroundColor: "#FFFFFF", cursor: "pointer", fontSize: 14 }}
-        >
-          Quay lại danh sách
-        </button>
-      </div>
-    );
+  async function handleApprove() {
+    await updateRequestStatus(APPROVED_STATUS);
+  }
+
+  async function handleReject() {
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setRejectReasonError("Rejection reason is required.");
+      return;
+    }
+
+    const updated = await updateRequestStatus("Rejected", reason);
+    if (updated) {
+      setShowRejectModal(false);
+      setRejectReason("");
+      setRejectReasonError("");
+    }
+  }
+
+  function openRejectModal() {
+    setRejectReason("");
+    setRejectReasonError("");
+    setShowRejectModal(true);
   }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", fontFamily: "'Inter', sans-serif" }}>
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
-          <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+    <div className="app-shell">
+      <Navbar activePage="Manager Pending" role="Manager" />
+
+      <main className="page-frame manager-detail-frame">
+        {loading && (
+          <div className="card dashboard-state" role="status">
+            Loading request details...
+          </div>
+        )}
+
+        {!loading && loadError && (
+          <div className="card dashboard-state error-state" role="alert">
+            <strong>Unable to load request details.</strong>
+            <span>{loadError}</span>
             <button
-              onClick={() => navigate("/finance")}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", marginTop: 4, color: "#374151", fontWeight: 700 }}
+              className="secondary-button"
+              type="button"
+              onClick={() => navigate("/manager/pending-requests")}
             >
-              Back
+              Back to Team Requests
             </button>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-                <h1 style={{ fontSize: 28, fontWeight: 800, color: "#111827", margin: 0, letterSpacing: "-0.5px" }}>{request.id}</h1>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", backgroundColor: "#F3F4F6", borderRadius: 6, fontSize: 12, fontWeight: 600, color: "#6B7280" }}>
-                  Locked
-                </span>
+          </div>
+        )}
+
+        {!loading && !loadError && request && (
+          <>
+            <div className="detail-heading manager-detail-heading">
+              <button
+                className="back-button"
+                type="button"
+                onClick={() => navigate("/manager/pending-requests")}
+              >
+                Back
+              </button>
+
+              <div>
+                <div className="title-line">
+                  <h1>{request.id}</h1>
+                  {request.isLocked && <span className="locked-badge">Locked</span>}
+                </div>
+                <p>
+                  Submitted by <strong>{request.employeeName}</strong> on{" "}
+                  {formatDate(request.submittedDate)}
+                </p>
               </div>
-              <p style={{ fontSize: 15, color: "#6B7280", margin: 0 }}>
-                Submitted by <span style={{ fontWeight: 600 }}>{request.employeeName}</span> on {new Date(request.submittedDate).toLocaleDateString("en-US")}
-              </p>
+
+              <span className="processor-pill">Current Processor: Manager</span>
             </div>
-          </div>
 
-          <div style={{ display: "inline-flex", padding: "6px 12px", backgroundColor: "#F3F4F6", borderRadius: 20, fontSize: 13, fontWeight: 600, color: "#374151" }}>
-            Current Processor: Finance
-          </div>
-        </div>
+            <div className="detail-grid">
+              <div className="detail-main">
+                <section className="card">
+                  <h2>Expense Details</h2>
+                  <div className="details-grid">
+                    <DetailField label="Category" value={request.category} />
+                    <DetailField
+                      label="Trip Dates"
+                      value={`${formatDate(request.tripDateFrom)} to ${formatDate(request.tripDateTo)}`}
+                    />
+                    <DetailField label="Status" value={request.status} />
+                    <DetailField
+                      label="Total Amount"
+                      value={formatCurrency(request.amount)}
+                      isStrong
+                    />
+                  </div>
+                </section>
 
-        {/* Grid Content */}
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-          {/* Left Column */}
-          <div style={{ flex: "2 1 600px", display: "flex", flexDirection: "column" }}>
-            <Card title="Expense Details">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 24, columnGap: 24 }}>
-                <div>
-                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Category</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{request.category}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Trip Dates</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{request.tripDateFrom} to {request.tripDateTo}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Status</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>{request.status}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>Total Amount</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>${request.amount.toFixed(2)}</div>
-                </div>
-              </div>
-            </Card>
-
-            <Card title="Line Items">
-              <div style={{ width: "100%", overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ color: "#6B7280", borderBottom: "1px solid #F3F4F6", backgroundColor: "#F9FAFB" }}>
-                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12 }}>DATE</th>
-                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12 }}>ITEM NAME</th>
-                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12 }}>PURPOSE</th>
-                      <th style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12, textAlign: "right" }}>AMOUNT</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {request.line_items.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} style={{ padding: "16px", textAlign: "center", color: "#6B7280" }}>Không có chi tiết mặt hàng nào.</td>
-                      </tr>
-                    ) : (
-                      request.line_items.map((item, idx) => (
-                        <tr key={item.id || idx} style={{ borderBottom: "1px solid #F3F4F6" }}>
-                          <td style={{ padding: "16px", color: "#374151" }}>{item.expense_date}</td>
-                          <td style={{ padding: "16px", color: "#111827", fontWeight: 500 }}>{item.item_service_name}</td>
-                          <td style={{ padding: "16px", color: "#6B7280" }}>{item.purpose_note}</td>
-                          <td style={{ padding: "16px", color: "#111827", fontWeight: 600, textAlign: "right" }}>${parseFloat(item.amount).toFixed(2)}</td>
+                <section className="card">
+                  <h2>Line Items</h2>
+                  <div className="table-scroll">
+                    <table className="line-items-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Item Name</th>
+                          <th>Purpose</th>
+                          <th>Amount</th>
                         </tr>
-                      ))
-                    )}
-                    <tr style={{ backgroundColor: "#FAFAFA" }}>
-                      <td colSpan={3} style={{ padding: "16px", fontWeight: 700, color: "#111827", textAlign: "center" }}>Total</td>
-                      <td style={{ padding: "16px", fontWeight: 800, color: "#111827", textAlign: "right" }}>${request.amount.toFixed(2)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+                      </thead>
+                      <tbody>
+                        {request.lineItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={4}>No line items provided.</td>
+                          </tr>
+                        ) : (
+                          request.lineItems.map((item) => (
+                            <tr key={item.id}>
+                              <td>{formatDate(item.date)}</td>
+                              <td>{item.itemName}</td>
+                              <td>{item.purpose}</td>
+                              <td>{formatCurrency(item.amount)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={3}>Total</td>
+                          <td>{formatCurrency(request.amount)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </section>
 
-            <Card title="Attachments" subtitle="Receipts and invoices for this request.">
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {request.line_items && request.line_items.length > 0 ? (
-                  request.line_items.map((item) => (
-                    item.file_url ? (
-                      <a
-                        key={item.id}
-                        href={item.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          padding: "12px",
-                          backgroundColor: "#F9FAFB",
-                          borderRadius: 8,
-                          border: "1px solid #E5E7EB",
-                          textDecoration: "none",
-                          color: "#2563EB",
-                          fontWeight: 500,
-                          fontSize: 14,
-                          transition: "all 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "#EFF6FF";
-                          e.currentTarget.style.borderColor = "#93C5FD";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "#F9FAFB";
-                          e.currentTarget.style.borderColor = "#E5E7EB";
-                        }}
+                <section className="card">
+                  <h2>Attachments</h2>
+                  {request.attachments.length === 0 ? (
+                    <div className="attachment-box attachment-box-empty">
+                      No attachments provided.
+                    </div>
+                  ) : (
+                    <div className="attachment-box">
+                      {request.attachments.map((attachment) => (
+                        <a
+                          className="attachment-chip"
+                          key={attachment.id}
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {attachment.name}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              <aside className="side-panel">
+                <section className="card actions-card">
+                  <h2>Actions</h2>
+                  {actionError && (
+                    <div className="readonly-state error-state" role="alert">
+                      {actionError}
+                    </div>
+                  )}
+
+                  {FINAL_STATUSES.has(request.status) ? (
+                    <div className="readonly-state">
+                      <strong>No manager action available.</strong>
+                      <span>This request is currently {request.status}.</span>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        className="primary-button manager-action-approve"
+                        type="button"
+                        onClick={handleApprove}
+                        disabled={submitting}
                       >
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B" }}>File</span>
-                        {item.file_name || "Download Receipt"}
-                      </a>
-                    ) : null
-                  ))
-                ) : (
-                  <div style={{ border: "1px dashed #E5E7EB", borderRadius: 8, padding: "32px", textAlign: "center", color: "#6B7280", fontSize: 14, fontStyle: "italic" }}>
-                    No attachments provided.
-                  </div>
-                )}
-              </div>
-            </Card>
-          </div>
+                        {submitting ? "Approving..." : "Approve Request"}
+                      </button>
+                      <button
+                        className="danger-button manager-action-reject"
+                        type="button"
+                        onClick={openRejectModal}
+                        disabled={submitting}
+                      >
+                        Reject Request
+                      </button>
+                    </>
+                  )}
+                </section>
 
-          {/* Right Column */}
-          <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column" }}>
-            <Card title="Actions">
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {request.status !== "Finance Approved" && (
-                  <button
-                    onClick={async () => {
-                      setSubmitting(true);
-                      setError(null);
-                      try {
-                        const apiBase = import.meta.env.VITE_API_URL || "";
-                        const res = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
-                          method: "PATCH",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "X-User-Id": "2"
-                          },
-                          body: JSON.stringify({ status: "Finance Approved", rejection_reason: null })
-                        });
-                        if (!res.ok) {
-                          const errData = await res.json();
-                          throw new Error(errData.detail || "Failed to approve request");
-                        }
-                        const updated = await res.json();
-                        setRequest(prev => ({ ...prev, status: updated.status }));
-                      } catch (err) {
-                        setError(err.message);
-                      } finally {
-                        setSubmitting(false);
-                      }
-                    }}
-                    disabled={submitting}
-                    style={{
-                      width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer",
-                      backgroundColor: "#10B981", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      opacity: submitting ? 0.6 : 1
-                    }}
-                  >
-                    Finance Approve
-                  </button>
-                )}
-                {request.status === "Finance Approved" && (
-                  <button
-                    onClick={async () => {
-                      setSubmitting(true);
-                      setError(null);
-                      try {
-                        const apiBase = import.meta.env.VITE_API_URL || "";
-                        const res = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
-                          method: "PATCH",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "X-User-Id": "2"
-                          },
-                          body: JSON.stringify({ status: "Paid", rejection_reason: null })
-                        });
-                        if (!res.ok) {
-                          const errData = await res.json();
-                          throw new Error(errData.detail || "Failed to mark request as paid");
-                        }
-                        const updated = await res.json();
-                        setRequest(prev => ({ ...prev, status: updated.status }));
-                      } catch (err) {
-                        setError(err.message);
-                      } finally {
-                        setSubmitting(false);
-                      }
-                    }}
-                    disabled={submitting}
-                    style={{
-                      width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: submitting ? "not-allowed" : "pointer",
-                      backgroundColor: "#2563EB", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      opacity: submitting ? 0.6 : 1
-                    }}
-                  >
-                    Mark as Paid
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowDeclineModal(true)}
-                  style={{
-                    width: "100%", padding: "12px", borderRadius: 8, border: "none", cursor: "pointer",
-                    backgroundColor: "#EF4444", color: "#FFFFFF", fontSize: 15, fontWeight: 600,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8
-                  }}
-                >
-                  Decline Request
-                </button>
-              </div>
-            </Card>
-
-            <Card title="Timeline">
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "relative" }}>
-                {/* Vertical line connecting timeline items */}
-                <div style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 2, backgroundColor: "#E5E7EB", zIndex: 0 }}></div>
-
-                <div style={{ display: "flex", gap: 16, position: "relative", zIndex: 1 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#3B82F6", border: "4px solid #FFFFFF", flexShrink: 0, marginTop: 2 }}></div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Submitted</div>
-                    <div style={{ fontSize: 13, color: "#6B7280" }}>{new Date(request.submittedDate).toLocaleDateString("en-US")}</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 16, position: "relative", zIndex: 1 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#3B82F6", border: "4px solid #FFFFFF", flexShrink: 0, marginTop: 2 }}></div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Manager Review</div>
-                    <div style={{ fontSize: 13, color: "#6B7280" }}>Approved</div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
+                <section className="card timeline-card">
+                  <h2>Timeline</h2>
+                  <ol className="timeline">
+                    {getTimelineEvents(request).map((event) => (
+                      <li key={`${event.title}-${event.date}`}>
+                        <strong>{event.title}</strong>
+                        <span>{event.date}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              </aside>
+            </div>
+          </>
+        )}
       </main>
 
-      {showDeclineModal && (
+      {showRejectModal && (
         <div
-          onClick={() => setShowDeclineModal(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 300,
-            padding: 24,
-          }}
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => setShowRejectModal(false)}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderRadius: 16,
-              padding: 32,
-              maxWidth: 480,
-              width: "100%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-            }}
+            className="modal reject-reason-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-request-title"
+            onClick={(event) => event.stopPropagation()}
           >
-            <h2 style={{ margin: "0 0 12px 0", fontSize: 20, fontWeight: 800, color: "#111827" }}>
-              Decline Request
-            </h2>
-            <p style={{ margin: "0 0 24px 0", fontSize: 14, color: "#6B7280" }}>
-              Please provide a reason for declining this expense request.
-            </p>
-            <textarea
-              value={declineReason}
-              onChange={(e) => setDeclineReason(e.target.value)}
-              placeholder="Enter rejection reason..."
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: 8,
-                border: "1px solid #E5E7EB",
-                fontSize: 14,
-                fontFamily: "inherit",
-                resize: "vertical",
-                minHeight: 100,
-                marginBottom: 24,
-              }}
-            />
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+            <h2 id="reject-request-title">Reject Request</h2>
+            <p>Enter a rejection reason before sending this request back.</p>
+
+            <label className="reject-reason-label">
+              Reason
+              <textarea
+                className="reject-reason-textarea"
+                value={rejectReason}
+                onChange={(event) => {
+                  setRejectReason(event.target.value);
+                  if (rejectReasonError) setRejectReasonError("");
+                }}
+                placeholder="Enter rejection reason..."
+              />
+            </label>
+
+            {rejectReasonError && (
+              <p className="modal-error-text" role="alert">
+                {rejectReasonError}
+              </p>
+            )}
+
+            <div className="modal-actions">
               <button
-                onClick={() => {
-                  setShowDeclineModal(false);
-                  setDeclineReason("");
-                }}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 8,
-                  border: "1px solid #E5E7EB",
-                  backgroundColor: "#FFFFFF",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: "#374151",
-                }}
+                className="secondary-button"
+                type="button"
+                onClick={() => setShowRejectModal(false)}
               >
                 Cancel
               </button>
               <button
-                onClick={async () => {
-                  if (!declineReason.trim()) {
-                    setError("Rejection reason is required.");
-                    return;
-                  }
-                  setSubmitting(true);
-                  setError(null);
-                  try {
-                    const apiBase = import.meta.env.VITE_API_URL || "";
-                    const res = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
-                      method: "PATCH",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "X-User-Id": "2"
-                      },
-                      body: JSON.stringify({ status: "Rejected", rejection_reason: declineReason })
-                    });
-                    if (!res.ok) {
-                      const errData = await res.json();
-                      throw new Error(errData.detail || "Failed to decline request");
-                    }
-                    const updated = await res.json();
-                    setRequest(prev => ({ ...prev, status: updated.status, rejection_reason: updated.rejection_reason }));
-                    setShowDeclineModal(false);
-                    setDeclineReason("");
-                  } catch (err) {
-                    setError(err.message);
-                  } finally {
-                    setSubmitting(false);
-                  }
-                }}
-                disabled={submitting || !declineReason.trim()}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 8,
-                  border: "none",
-                  backgroundColor: "#EF4444",
-                  color: "#FFFFFF",
-                  cursor: declineReason.trim() && !submitting ? "pointer" : "not-allowed",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  opacity: declineReason.trim() && !submitting ? 1 : 0.6,
-                }}
+                className="danger-button"
+                type="button"
+                onClick={handleReject}
+                disabled={submitting || !rejectReason.trim()}
               >
-                {submitting ? "Declining..." : "Confirm Decline"}
+                {submitting ? "Rejecting..." : "Confirm Reject"}
               </button>
             </div>
           </div>
@@ -455,4 +364,114 @@ export default function RequestDetailPage() {
       )}
     </div>
   );
+}
+
+function DetailField({ label, value, isStrong = false }) {
+  return (
+    <div>
+      <span className="field-label">{label}</span>
+      <strong className={isStrong ? "amount-value" : undefined}>{value}</strong>
+    </div>
+  );
+}
+
+function toRequestViewModel(request) {
+  const lineItems = (request.line_items ?? []).map((item) => ({
+    id: String(item.id),
+    date: item.expense_date,
+    itemName: item.item_service_name,
+    purpose: item.purpose_note,
+    amount: Number(item.amount ?? 0),
+    fileUrl: item.file_url,
+    fileName: item.file_name,
+  }));
+  const lineItemAttachments = lineItems
+    .filter((item) => item.fileUrl)
+    .map((item) => ({
+      id: `line-item-${item.id}`,
+      name: item.fileName || `Receipt for ${item.itemName}`,
+      url: item.fileUrl,
+    }));
+  const attachments = [
+    ...(request.attachments ?? []).map((attachment) => ({
+      id: String(attachment.id),
+      name: attachment.file_name ?? attachment.name ?? "Attachment",
+      url: attachment.file_url ?? attachment.url,
+    })),
+    ...lineItemAttachments,
+  ].filter((attachment) => attachment.url);
+
+  return {
+    id: formatRequestId(request.id),
+    employeeName: request.employee_name ?? `Employee #${request.employee_id ?? "Unknown"}`,
+    category: request.category_name ?? `Category #${request.category_id ?? "Unknown"}`,
+    submittedDate: request.created_at,
+    updatedDate: request.updated_at,
+    amount: Number(request.total_amount ?? 0),
+    status: request.status,
+    tripDateFrom: request.start_date,
+    tripDateTo: request.end_date,
+    rejectionReason: request.rejection_reason,
+    isLocked: Boolean(request.is_locked),
+    lineItems,
+    attachments,
+  };
+}
+
+function getTimelineEvents(request) {
+  const events = [
+    {
+      title: "Submitted",
+      date: formatDate(request.submittedDate),
+    },
+    {
+      title: "Manager Review",
+      date:
+        request.status === "Pending Manager"
+          ? "Pending"
+          : formatDate(request.updatedDate || request.submittedDate),
+    },
+  ];
+
+  if (request.rejectionReason) {
+    events.push({
+      title: "Rejected",
+      date: request.rejectionReason,
+    });
+  }
+
+  return events;
+}
+
+function formatRequestId(id) {
+  const rawId = String(id ?? "").trim();
+  if (!rawId) return "REQ-000";
+  if (/^REQ-/i.test(rawId)) return rawId.toUpperCase();
+
+  return `REQ-${rawId.replace(/^#/, "").padStart(3, "0")}`;
+}
+
+function formatCurrency(value, currency = "USD") {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(value);
+  }
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(String(value).includes("T") ? value : `${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB").format(date);
 }
