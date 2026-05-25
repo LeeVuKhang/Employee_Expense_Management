@@ -48,6 +48,14 @@ export default function MyRequests({ onNavigate }) {
     [myRequests, search, statusFilter]
   );
 
+  const statusFilterOptions = [
+    { value: ALL_STATUSES, label: "All Statuses" },
+    ...Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({
+      value: key,
+      label: cfg.label,
+    })),
+  ];
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
       <Navbar activePage="My Requests" onNavigate={onNavigate} />
@@ -75,22 +83,16 @@ export default function MyRequests({ onNavigate }) {
           <StatCard label="Total Claimed" value={`$${stats.totalAmount.toLocaleString()}`} color="#2563EB" bg="#EFF6FF" />
         </div>
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
+        <div style={{ marginBottom: 16 }}>
           <SearchBar
             value={search}
             onChange={setSearch}
             placeholder="Search by ID, category, or description..."
+            filterValue={statusFilter}
+            onFilterChange={setStatusFilter}
+            filterOptions={statusFilterOptions}
+            filterLabel="Status"
           />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ padding: "10px 16px", border: "1px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", backgroundColor: "#FFFFFF", cursor: "pointer", outline: "none", fontFamily: "inherit", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", minWidth: 170 }}
-          >
-            <option value={ALL_STATUSES}>All Statuses</option>
-            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-              <option key={key} value={key}>{cfg.label}</option>
-            ))}
-          </select>
         </div>
 
         <div style={{ marginBottom: 20 }}>
