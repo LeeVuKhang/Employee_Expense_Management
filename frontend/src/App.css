@@ -1604,7 +1604,14 @@ button:focus-visible {
   gap: 20px;
 }
 
+.request-card-side .status-badge-wrap {
+  width: 150px;
+  align-items: flex-end;
+}
+
 .request-card-amount {
+  width: 120px;
+  text-align: right;
   color: #0f172a;
   font-size: 18px;
   line-height: 1;
