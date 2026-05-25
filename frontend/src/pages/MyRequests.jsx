@@ -57,25 +57,25 @@ export default function MyRequests({ onNavigate }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#F9FAFB", fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
+    <div className="app-shell">
       <Navbar activePage="My Requests" onNavigate={onNavigate} />
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
+      <main className="page-frame employee-requests-frame">
+        <div className="page-title-row employee-requests-heading">
           <div>
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#111827", letterSpacing: 0 }}>My Requests</h1>
-            <p style={{ margin: "4px 0 0", color: "#6B7280", fontSize: 14 }}>Track your expense reimbursements in real time.</p>
+            <h1>My Requests</h1>
+            <p>Manage your expense reimbursements.</p>
           </div>
           <button
+            className="primary-button new-request-button"
             type="button"
             onClick={() => onNavigate?.("New Request", { mode: "create" })}
-            style={{ padding: "10px 20px", backgroundColor: "#2563EB", color: "#FFFFFF", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}
           >
-            + New Request
+            New Request
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 28, flexWrap: "wrap" }}>
+        <div className="employee-stats-grid">
           <StatCard label="Total Requests" value={stats.total} color="#6B7280" bg="#F3F4F6" />
           <StatCard label="Pending Review" value={stats.pending} color="#D97706" bg="#FFFBEB" />
           <StatCard label="Paid" value={stats.paid} color="#059669" bg="#ECFDF5" />
@@ -83,7 +83,7 @@ export default function MyRequests({ onNavigate }) {
           <StatCard label="Total Claimed" value={`$${stats.totalAmount.toLocaleString()}`} color="#2563EB" bg="#EFF6FF" />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
+        <div className="requests-toolbar">
           <SearchBar
             value={search}
             onChange={setSearch}
@@ -95,23 +95,28 @@ export default function MyRequests({ onNavigate }) {
           />
         </div>
 
-        <div style={{ marginBottom: 20 }}>
+        <div className="requests-legend">
           <StatusLegend activeStatus={statusFilter} onSelect={setStatusFilter} />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="requests-list">
           {loading ? (
-            <div style={{ textAlign: "center", padding: "60px 24px", color: "#6B7280", fontSize: 15 }}>
+            <div className="dashboard-state" role="status">
               Loading requests...
             </div>
           ) : error ? (
-            <div style={{ textAlign: "center", padding: "40px 24px", backgroundColor: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA" }}>
-              <div style={{ color: "#DC2626", fontWeight: 600, marginBottom: 4 }}>Unable to load requests</div>
-              <div style={{ color: "#EF4444", fontSize: 13 }}>{error}</div>
+            <div className="dashboard-state error-state" role="alert">
+              <strong>Unable to load requests</strong>
+              <span>{error}</span>
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 24px", color: "#9CA3AF", fontSize: 15 }}>
-              No requests found matching your filters.
+            <div className="dashboard-state empty-state">
+              <strong>No requests found</strong>
+              <span>
+                {myRequests.length
+                  ? "No requests match the current search or status filter."
+                  : "Create a new request to start tracking reimbursements."}
+              </span>
             </div>
           ) : (
             filtered.map((req) => (
@@ -125,11 +130,11 @@ export default function MyRequests({ onNavigate }) {
         </div>
 
         {!loading && !error && filtered.length > 0 && (
-          <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "#9CA3AF" }}>
+          <p className="requests-count">
             Showing {filtered.length} of {myRequests.length} requests
           </p>
         )}
-      </div>
+      </main>
     </div>
   );
 }

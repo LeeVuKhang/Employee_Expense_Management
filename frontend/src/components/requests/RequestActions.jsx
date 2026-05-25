@@ -43,7 +43,8 @@ export default function RequestActions({
       ) : (
         <>
           <div className="readonly-state">
-            <span>Locked</span>
+            <span className="locked-badge">Locked</span>
+            <span>This request is no longer editable.</span>
           </div>
           <button
             className="secondary-button"

@@ -21,13 +21,14 @@ function formatCurrency(value) {
 }
 
 function formatRequestId(requestId) {
-  return `REQ-${String(requestId).padStart(3, "0")}`;
+  const value = String(requestId ?? "").replace(/^#/, "");
+  return value.startsWith("REQ-") ? value : `REQ-${value.padStart(3, "0")}`;
 }
 
 function formatDate(value) {
   if (!value) return "";
 
-  const [year, month, day] = value.split("-");
+  const [year, month, day] = String(value).slice(0, 10).split("-");
   if (!year || !month || !day) return value;
 
   return `${Number(day)}/${Number(month)}/${year}`;
@@ -63,12 +64,13 @@ function LineItemsTable({ lineItems, total }) {
               <td>{formatCurrency(lineItem.amount)}</td>
             </tr>
           ))}
+        </tbody>
+        <tfoot>
           <tr className="total-row">
-            <td colSpan="2" />
-            <td>Total</td>
+            <td colSpan="3">Total</td>
             <td>{formatCurrency(total)}</td>
           </tr>
-        </tbody>
+        </tfoot>
       </table>
     </div>
   );
@@ -183,85 +185,88 @@ export default function ExpenseRequestDetail({
         )}
 
         {!loading && !error && request && (
-          <section className="detail-grid">
-            <div className="detail-main">
-              <div className="detail-heading">
-                <button
-                  className="back-button"
-                  type="button"
-                  onClick={() => onNavigate?.("My Requests")}
-                >
-                  Back
-                </button>
+          <>
+            <div className="detail-heading">
+              <button
+                aria-label="Back to My Requests"
+                className="back-button"
+                type="button"
+                onClick={() => onNavigate?.("My Requests")}
+              >
+                ←
+              </button>
 
-                <div>
-                  <h1>{formatRequestId(request.id)}</h1>
-                  <p>
-                    Submitted by {request.employee} on {formatDate(request.submittedOn)}
-                  </p>
-                </div>
-
-                <span className="processor-pill">
-                  Current Processor: {request.processor}
-                </span>
+              <div>
+                <h1>{formatRequestId(request.id)}</h1>
+                <p>
+                  Submitted by {request.employee} on {formatDate(request.submittedOn)}
+                </p>
               </div>
 
-              <div className="card">
-                <h2>Expense Details</h2>
-                <div className="details-grid">
-                  <FieldValue label="Category" value={request.category} />
-                  <FieldValue
-                    label="Trip Dates"
-                    value={`${request.tripStart} to ${request.tripEnd}`}
-                  />
-                  <FieldValue label="Status" value={request.status} />
-                  <FieldValue label="Total Amount" value={formatCurrency(total)} />
-                </div>
-              </div>
-
-              <div className="card">
-                <h2>Line Items</h2>
-                <LineItemsTable lineItems={request.lineItems} total={total} />
-              </div>
-
-              <div className="card">
-                <h2>Attachments</h2>
-                <p className="muted">Receipts and invoices for this request.</p>
-                <div className="attachment-box">
-                  {request.attachments.length ? (
-                    request.attachments.map((attachment) => (
-                      <span className="attachment-chip" key={attachment.id ?? attachment.fileName}>
-                        {attachment.fileName}
-                      </span>
-                    ))
-                  ) : (
-                    <em>No attachments provided.</em>
-                  )}
-                </div>
-              </div>
+              <span className="processor-pill">
+                Current Processor: {request.processor}
+              </span>
             </div>
 
-            <aside className="side-panel">
-              <RequestActions
-                request={request}
-                onCancel={(nextRequest) => setCancelTarget(nextRequest)}
-                onDuplicate={handleDuplicate}
-                onEdit={handleEdit}
-              />
+            <section className="detail-grid">
+              <div className="detail-main">
+                <div className="card">
+                  <h2>Expense Details</h2>
+                  <div className="details-grid">
+                    <FieldValue label="Category" value={request.category} />
+                    <FieldValue
+                      label="Trip Dates"
+                      value={`${request.tripStart} to ${request.tripEnd}`}
+                    />
+                    <FieldValue label="Status" value={request.status} />
+                    <FieldValue label="Total Amount" value={formatCurrency(total)} />
+                  </div>
+                </div>
 
-              <div className="card timeline-card">
-                <h2>Timeline</h2>
-                <ol className="timeline">
-                  {request.timeline.map((item) => (
-                    <li key={`${item.label}-${item.date}`}>
-                      <strong>{item.label}</strong>
-                      <span>{formatDate(item.date)}</span>
-                    </li>
-                  ))}
-                </ol>
+                <div className="card">
+                  <h2>Line Items</h2>
+                  <LineItemsTable lineItems={request.lineItems} total={total} />
+                </div>
+
+                <div className="card">
+                  <h2>Attachments</h2>
+                  <p className="muted">Receipts and invoices for this request.</p>
+                  <div className="attachment-box">
+                    {request.attachments.length ? (
+                      request.attachments.map((attachment) => (
+                        <span className="attachment-chip" key={attachment.id ?? attachment.fileName}>
+                          {attachment.fileName}
+                        </span>
+                      ))
+                    ) : (
+                      <em>No attachments provided.</em>
+                    )}
+                  </div>
+                </div>
               </div>
-            </aside>
-          </section>
+
+              <aside className="side-panel">
+                <RequestActions
+                  request={request}
+                  onCancel={(nextRequest) => setCancelTarget(nextRequest)}
+                  onDuplicate={handleDuplicate}
+                  onEdit={handleEdit}
+                />
+
+                <div className="card timeline-card">
+                  <h2>Timeline</h2>
+                  <ol className="timeline">
+                    {request.timeline.map((item) => (
+                      <li key={`${item.label}-${item.date}`}>
+                        <strong>{item.label}</strong>
+                        <span>{formatDate(item.date)}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </aside>
+            </section>
+          </>
         )}
       </main>
 

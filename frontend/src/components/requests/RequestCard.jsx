@@ -1,71 +1,67 @@
-// components/requests/RequestCard.jsx
-import { useState } from "react";
 import StatusBadge from "./StatusBadge";
 
 function displayRequestId(id) {
-  const value = String(id ?? "");
-  return value.startsWith("#") || value.startsWith("REQ-") ? value : `#${value}`;
+  const value = String(id ?? "").replace(/^#/, "");
+  return value.startsWith("REQ-") ? value : `REQ-${value.padStart(3, "0")}`;
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+
+  const dateOnly = String(value).slice(0, 10);
+  const [year, month, day] = dateOnly.split("-");
+
+  if (year && month && day) {
+    return `${Number(day)}/${Number(month)}/${year}`;
+  }
+
+  return value;
 }
 
 export default function RequestCard({ request, onClick }) {
-  const [hovered, setHovered] = useState(false);
   const sameDay = request.tripDateFrom === request.tripDateTo;
-  const dateRange = sameDay ? request.tripDateFrom : `${request.tripDateFrom} -> ${request.tripDateTo}`;
+  const dateRange = sameDay
+    ? request.tripDateFrom
+    : `${request.tripDateFrom} to ${request.tripDateTo}`;
   const isFinanceRequest = Boolean(request.employeeName);
-  const avatarSource = request.employeeName ?? request.category ?? "U";
-  const primaryLabel = isFinanceRequest ? request.employeeName : displayRequestId(request.id);
-  const secondaryLabel = isFinanceRequest ? displayRequestId(request.id) : request.category;
-  const detailLabel = isFinanceRequest ? request.category : dateRange;
+  const requestId = displayRequestId(request.id);
+  const primaryMeta = isFinanceRequest ? request.employeeName : request.category;
+  const detailLabel = isFinanceRequest
+    ? `Category: ${request.category} | Trip Dates: ${dateRange}`
+    : `Trip Dates: ${dateRange}`;
   const amount = Number(request.amount ?? 0);
 
   return (
-    <div
+    <article
+      className="request-card"
       onClick={() => onClick?.(request)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "24px 28px",
-        backgroundColor: hovered ? "#FAFAFA" : "#FFFFFF",
-        borderRadius: 12,
-        border: "1px solid",
-        borderColor: hovered ? "#D1D5DB" : "#E5E7EB",
-        cursor: "pointer",
-        transition: "all 0.18s ease",
-        boxShadow: hovered ? "0 4px 16px rgba(0,0,0,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
-        transform: hovered ? "translateY(-1px)" : "none",
-        gap: 16,
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick?.(request);
+        }
       }}
+      role="button"
+      tabIndex={0}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, minWidth: 0 }}>
-        <div style={{ width: 46, height: 46, borderRadius: "50%", backgroundColor: "#E2E8F0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#475569", flexShrink: 0 }}>
-          {avatarSource.charAt(0)}
+      <div className="request-card-main">
+        <div className="request-card-meta">
+          <strong>{requestId}</strong>
+          <span aria-hidden="true">•</span>
+          <span>{primaryMeta}</span>
+          <span aria-hidden="true">•</span>
+          <span>{formatDate(request.submittedDate ?? request.submittedOn)}</span>
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>{primaryLabel}</span>
-            <span style={{ color: "#D1D5DB", fontSize: 12 }}>-</span>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>{secondaryLabel}</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>{detailLabel}</span>
-            <span style={{ color: "#D1D5DB", fontSize: 12 }}>-</span>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>
-              Submitted {new Date(request.submittedDate).toLocaleDateString("en-US")}
-            </span>
-          </div>
-        </div>
+
+        <div className="request-card-trip">{detailLabel}</div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 24, flexShrink: 0 }}>
-        <span style={{ fontWeight: 800, fontSize: 18, color: "#111827", fontFamily: "'Inter', sans-serif" }}>
+      <div className="request-card-side">
+        <strong className="request-card-amount">
           ${amount.toFixed(2)}
-        </span>
+        </strong>
         <StatusBadge status={request.status} />
-        <span style={{ color: "#9CA3AF", fontSize: 20 }}>-&gt;</span>
       </div>
-    </div>
+    </article>
   );
 }
