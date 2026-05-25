@@ -38,7 +38,7 @@ export default function StatCard({ label, value, color, bg, labelColor }) {
           fontWeight: 800,
           color,
           fontFamily: "'Inter', sans-serif",
-          letterSpacing: "-0.5px",
+          letterSpacing: 0,
           lineHeight: 1,
         }}
       >

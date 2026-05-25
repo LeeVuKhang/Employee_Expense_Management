@@ -1,132 +1,74 @@
-// components/layout/Navbar.jsx
-// Sticky top navigation bar — standalone component
-
 import { NavLink } from "react-router-dom";
 
-const DEFAULT_NAV_ITEMS = [
-  { label: "My Requests", href: "/my-requests" },
-  { label: "New Request", href: "/new-request" },
-  { label: "Manager Pending", href: "/manager/pending-requests" },
-];
+const ROLE_NAV_ITEMS = {
+  Employee: [
+    { label: "My Requests", href: "/my-requests" },
+    { label: "New Request", href: "/new-request" },
+  ],
+  Manager: [
+    { label: "Team Requests", href: "/manager/pending-requests", page: "Manager Pending" },
+  ],
+  Finance: [
+    { label: "Finance Approvals", href: "/finance" },
+  ],
+};
+
+function inferRole(activePage, navItems) {
+  const labels = [activePage, ...(navItems ?? []).map((item) => item.label)].join(" ");
+
+  if (/finance/i.test(labels)) return "Finance";
+  if (/manager|team requests/i.test(labels)) return "Manager";
+  return "Employee";
+}
 
 export default function Navbar({
   activePage = "My Requests",
-  navItems = DEFAULT_NAV_ITEMS,
+  navItems,
   onNavigate,
+  role,
 }) {
+  const currentRole = role ?? inferRole(activePage, navItems);
+  const items = navItems ?? ROLE_NAV_ITEMS[currentRole] ?? ROLE_NAV_ITEMS.Employee;
+
   return (
-    <nav
-      style={{
-        backgroundColor: "#FFFFFF",
-        borderBottom: "1px solid #E5E7EB",
-        padding: "0 32px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        height: 60,
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-      }}
-    >
-      {/* Brand */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            backgroundColor: "#2563EB",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#FFF",
-            fontWeight: 800,
-            fontSize: 16,
-            flexShrink: 0,
-          }}
-        >
-          E
+    <header className="navbar">
+      <div className="navbar-left">
+        <NavLink className="navbar-brand" to="/my-requests">
+          <span className="navbar-logo">E</span>
+          <span className="navbar-brand-text">Expensify</span>
+        </NavLink>
+
+        <nav className="navbar-links" aria-label="Primary navigation">
+          {items.map(({ label, href, page, active }) => (
+            <NavLink
+              key={`${label}-${href}`}
+              to={href}
+              onClick={(event) => {
+                if (onNavigate) {
+                  event.preventDefault();
+                  onNavigate(page ?? label);
+                }
+              }}
+              className={({ isActive }) => {
+                const activeLink = active || isActive || label === activePage || page === activePage;
+                return `navbar-link${activeLink ? " navbar-link-active" : ""}`;
+              }}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+
+      <div className="navbar-user">
+        <div className="navbar-role" aria-label="Current role">
+          <span className="navbar-role-name">{currentRole}</span>
+          <span className="navbar-role-label">Active Role</span>
         </div>
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 16,
-            color: "#111827",
-            letterSpacing: "-0.2px",
-          }}
-        >
-          Expensify
-        </span>
+        <button className="navbar-logout" type="button">
+          Logout
+        </button>
       </div>
-
-      {/* Nav links */}
-      <div style={{ display: "flex", gap: 4 }}>
-        {navItems.map(({ label, href }) => (
-          <NavLink
-            key={label}
-            to={href}
-            onClick={(event) => {
-              if (onNavigate) {
-                event.preventDefault();
-                onNavigate(label);
-              }
-            }}
-            style={({ isActive }) => {
-              const active = isActive || label === activePage;
-
-              return {
-                padding: "6px 16px",
-                borderRadius: 8,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                backgroundColor: active ? "#EFF6FF" : "transparent",
-                color: active ? "#2563EB" : "#6B7280",
-                textDecoration: "none",
-                transition: "all 0.15s ease",
-              };
-            }}
-            onMouseEnter={(e) => {
-              if (label !== activePage) {
-                e.currentTarget.style.backgroundColor = "#F3F4F6";
-                e.currentTarget.style.color = "#374151";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (label !== activePage) {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "#6B7280";
-              }
-            }}
-          >
-            {label}
-          </NavLink>
-        ))}
-      </div>
-
-      {/* User avatar */}
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: "50%",
-          backgroundColor: "#DBEAFE",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 13,
-          fontWeight: 700,
-          color: "#2563EB",
-          cursor: "pointer",
-          border: "2px solid #BFDBFE",
-        }}
-        title="John Doe"
-      >
-        JD
-      </div>
-    </nav>
+    </header>
   );
 }

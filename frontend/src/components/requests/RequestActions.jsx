@@ -43,8 +43,8 @@ export default function RequestActions({
       ) : (
         <>
           <div className="readonly-state">
-            <LockIcon />
-            <span>Locked</span>
+            <span className="locked-badge">Locked</span>
+            <span>This request is no longer editable.</span>
           </div>
           <button
             className="secondary-button"
@@ -56,14 +56,5 @@ export default function RequestActions({
         </>
       )}
     </div>
-  )
-}
-
-function LockIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 10V8a5 5 0 0 1 10 0v2" />
-      <rect x="5" y="10" width="14" height="11" rx="2" />
-    </svg>
   )
 }

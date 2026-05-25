@@ -73,6 +73,23 @@ export async function fetchManagerPendingRequestsSummary(userId = MANAGER_DASHBO
   }
 }
 
+export async function updateManagerExpenseRequestStatus(
+  expenseId,
+  { status, rejectionReason = null },
+  userId = MANAGER_DASHBOARD_USER_ID,
+) {
+  const expense = await requestExpense(managerApiRoutes.requestStatus(expenseId), {
+    method: 'PATCH',
+    userId,
+    body: JSON.stringify({
+      status,
+      rejection_reason: rejectionReason,
+    }),
+  })
+
+  return toExpenseViewModel(expense)
+}
+
 export async function fetchExpenseRequest(expenseId, userId = CURRENT_USER_ID) {
   const expense = await requestExpense(expenseApiRoutes.detail(expenseId), { userId })
   return toExpenseViewModel(expense)
@@ -205,6 +222,8 @@ function toManagerPendingRequestViewModel(request) {
       toDateOnly(request.created_at ?? request.createdDate ?? request.submittedOn) ??
       request.start_date ??
       '',
+    tripDateFrom: request.start_date ?? request.tripDateFrom ?? request.tripStart ?? '',
+    tripDateTo: request.end_date ?? request.tripDateTo ?? request.tripEnd ?? '',
     status: request.status,
     currency: request.currency ?? 'USD',
   }

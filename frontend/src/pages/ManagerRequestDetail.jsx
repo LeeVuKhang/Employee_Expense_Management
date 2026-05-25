@@ -1,51 +1,52 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  fetchExpenseRequest,
+  updateManagerExpenseRequestStatus,
+} from "../api/expenses";
 import Navbar from "../components/layouts/Navbar";
 
-const FINANCE_APPROVED_STATUS = "Finance Approved";
-const PAID_STATUS = "Paid";
+const PENDING_MANAGER_STATUS = "Pending Manager";
+const APPROVED_FOR_FINANCE_STATUS = "Pending Finance";
 const REJECTED_STATUS = "Rejected";
-const CLOSED_STATUSES = new Set([PAID_STATUS, REJECTED_STATUS, "Cancelled"]);
 
-export default function RequestDetailPage() {
-  const { id } = useParams();
+export default function ManagerRequestDetail() {
+  const { requestId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  const routeRequest = location.state?.request ?? null;
 
-  const [request, setRequest] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [request, setRequest] = useState(() =>
+    routeRequest ? toManagerDetailViewModel(routeRequest) : null,
+  );
+  const [loading, setLoading] = useState(!routeRequest);
   const [loadError, setLoadError] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [showDeclineModal, setShowDeclineModal] = useState(false);
-  const [declineReason, setDeclineReason] = useState("");
-  const [declineReasonError, setDeclineReasonError] = useState("");
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectReasonError, setRejectReasonError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let isCurrent = true;
+    const fallbackRequest = routeRequest ? toManagerDetailViewModel(routeRequest) : null;
 
     async function loadRequest() {
-      const apiBase = import.meta.env.VITE_API_URL || "";
-      setLoading(true);
+      setLoading(!fallbackRequest);
       setLoadError(null);
 
+      if (fallbackRequest) {
+        setRequest(fallbackRequest);
+      }
+
       try {
-        const response = await fetch(`${apiBase}/api/finance/requests/${id}`, {
-          headers: {
-            "X-User-Id": "2",
-          },
-        });
-
-        if (!response.ok) {
-          const message = await response.text();
-          throw new Error(`Unable to load request details (${response.status}): ${message}`);
-        }
-
-        const fetchedData = await response.json();
+        const fetchedRequest = await fetchExpenseRequest(requestId);
         if (isCurrent) {
-          setRequest(toRequestViewModel(fetchedData));
+          setRequest(toManagerDetailViewModel(fetchedRequest));
         }
       } catch (error) {
-        if (isCurrent) {
+        if (!isCurrent) return;
+        if (!fallbackRequest) {
           setLoadError(error.message);
         }
       } finally {
@@ -60,30 +61,18 @@ export default function RequestDetailPage() {
     return () => {
       isCurrent = false;
     };
-  }, [id]);
+  }, [requestId, routeRequest]);
 
-  async function updateRequestStatus(status, rejectionReason = null) {
+  async function updateStatus(status, rejectionReason = null) {
     setSubmitting(true);
     setActionError(null);
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || "";
-      const response = await fetch(`${apiBase}/api/finance/requests/${id}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": "2",
-        },
-        body: JSON.stringify({ status, rejection_reason: rejectionReason }),
+      const updatedRequest = await updateManagerExpenseRequestStatus(requestId, {
+        status,
+        rejectionReason,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(readApiError(errorData) || "Failed to update request status.");
-      }
-
-      const updated = await response.json();
-      setRequest(toRequestViewModel(updated));
+      setRequest(toManagerDetailViewModel(updatedRequest));
       return true;
     } catch (error) {
       setActionError(error.message);
@@ -93,40 +82,36 @@ export default function RequestDetailPage() {
     }
   }
 
-  async function handleFinanceApprove() {
-    await updateRequestStatus(FINANCE_APPROVED_STATUS);
+  async function handleApprove() {
+    await updateStatus(APPROVED_FOR_FINANCE_STATUS);
   }
 
-  async function handleMarkAsPaid() {
-    await updateRequestStatus(PAID_STATUS);
-  }
-
-  async function handleDecline() {
-    const reason = declineReason.trim();
+  async function handleReject() {
+    const reason = rejectReason.trim();
     if (!reason) {
-      setDeclineReasonError("Decline reason is required.");
+      setRejectReasonError("Reason is required.");
       return;
     }
 
-    const updated = await updateRequestStatus(REJECTED_STATUS, reason);
+    const updated = await updateStatus(REJECTED_STATUS, reason);
     if (updated) {
-      setShowDeclineModal(false);
-      setDeclineReason("");
-      setDeclineReasonError("");
+      setShowRejectModal(false);
+      setRejectReason("");
+      setRejectReasonError("");
     }
   }
 
-  function openDeclineModal() {
-    setDeclineReason("");
-    setDeclineReasonError("");
-    setShowDeclineModal(true);
+  function openRejectModal() {
+    setRejectReason("");
+    setRejectReasonError("");
+    setShowRejectModal(true);
   }
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Finance Approvals" role="Finance" />
+      <Navbar activePage="Team Requests" role="Manager" />
 
-      <main className="page-frame finance-detail-frame">
+      <main className="page-frame manager-detail-frame">
         {loading && (
           <div className="card dashboard-state" role="status">
             Loading request details...
@@ -140,28 +125,27 @@ export default function RequestDetailPage() {
             <button
               className="secondary-button"
               type="button"
-              onClick={() => navigate("/finance")}
+              onClick={() => navigate("/manager/pending-requests")}
             >
-              Back to Finance Queue
+              Back to Team Requests
             </button>
           </div>
         )}
 
         {!loading && !loadError && request && (
           <>
-            <div className="detail-heading finance-detail-heading">
+            <div className="detail-heading manager-detail-heading">
               <button
                 className="back-button"
                 type="button"
-                onClick={() => navigate("/finance")}
+                onClick={() => navigate("/manager/pending-requests")}
               >
-                Back
+                ← Back
               </button>
 
               <div>
                 <div className="title-line">
                   <h1>{request.id}</h1>
-                  {request.isLocked && <span className="locked-badge">Locked</span>}
                 </div>
                 <p>
                   Submitted by <strong>{request.employeeName}</strong> on{" "}
@@ -169,7 +153,7 @@ export default function RequestDetailPage() {
                 </p>
               </div>
 
-              <span className="processor-pill">Current Processor: Finance</span>
+              <span className="processor-pill">Current Processor: Manager</span>
             </div>
 
             <div className="detail-grid">
@@ -262,24 +246,22 @@ export default function RequestDetailPage() {
                     </div>
                   )}
 
-                  <FinanceActions
+                  <ManagerActions
+                    isLocked={request.isLocked}
                     status={request.status}
                     submitting={submitting}
-                    onApprove={handleFinanceApprove}
-                    onDecline={openDeclineModal}
-                    onMarkPaid={handleMarkAsPaid}
+                    onApprove={handleApprove}
+                    onReject={openRejectModal}
                   />
                 </section>
 
                 <section className="card timeline-card">
                   <h2>Timeline</h2>
                   <ol className="timeline">
-                    {getTimelineEvents(request).map((event) => (
-                      <li key={`${event.title}-${event.date}`}>
-                        <strong>{event.title}</strong>
-                        <span>{event.date}</span>
-                      </li>
-                    ))}
+                    <li>
+                      <strong>Submitted</strong>
+                      <span>{formatDate(request.submittedDate)}</span>
+                    </li>
                   </ol>
                 </section>
               </aside>
@@ -288,38 +270,38 @@ export default function RequestDetailPage() {
         )}
       </main>
 
-      {showDeclineModal && (
+      {showRejectModal && (
         <div
           className="modal-backdrop"
           role="presentation"
-          onClick={() => setShowDeclineModal(false)}
+          onClick={() => setShowRejectModal(false)}
         >
           <div
             className="modal reject-reason-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="decline-request-title"
+            aria-labelledby="reject-request-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 id="decline-request-title">Decline Request</h2>
-            <p>Enter a decline reason before returning this request.</p>
+            <h2 id="reject-request-title">Reject Request</h2>
+            <p>Enter a reason before rejecting this request.</p>
 
             <label className="reject-reason-label">
               Reason
               <textarea
                 className="reject-reason-textarea"
-                value={declineReason}
+                value={rejectReason}
                 onChange={(event) => {
-                  setDeclineReason(event.target.value);
-                  if (declineReasonError) setDeclineReasonError("");
+                  setRejectReason(event.target.value);
+                  if (rejectReasonError) setRejectReasonError("");
                 }}
-                placeholder="Enter decline reason..."
+                placeholder="Enter rejection reason..."
               />
             </label>
 
-            {declineReasonError && (
+            {rejectReasonError && (
               <p className="modal-error-text" role="alert">
-                {declineReasonError}
+                {rejectReasonError}
               </p>
             )}
 
@@ -327,17 +309,17 @@ export default function RequestDetailPage() {
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => setShowDeclineModal(false)}
+                onClick={() => setShowRejectModal(false)}
               >
                 Cancel
               </button>
               <button
                 className="danger-button"
                 type="button"
-                onClick={handleDecline}
-                disabled={submitting || !declineReason.trim()}
+                onClick={handleReject}
+                disabled={submitting || !rejectReason.trim()}
               >
-                {submitting ? "Declining..." : "Confirm Decline"}
+                {submitting ? "Rejecting..." : "Confirm Reject"}
               </button>
             </div>
           </div>
@@ -347,24 +329,11 @@ export default function RequestDetailPage() {
   );
 }
 
-function FinanceActions({ status, submitting, onApprove, onDecline, onMarkPaid }) {
-  if (status === FINANCE_APPROVED_STATUS) {
-    return (
-      <button
-        className="primary-button finance-action-paid"
-        type="button"
-        onClick={onMarkPaid}
-        disabled={submitting}
-      >
-        {submitting ? "Marking as Paid..." : "Mark as Paid"}
-      </button>
-    );
-  }
-
-  if (CLOSED_STATUSES.has(status)) {
+function ManagerActions({ isLocked, status, submitting, onApprove, onReject }) {
+  if (isLocked || status !== PENDING_MANAGER_STATUS) {
     return (
       <div className="readonly-state">
-        <strong>No finance action available.</strong>
+        <strong>No manager action available.</strong>
         <span>This request is currently {status}.</span>
       </div>
     );
@@ -373,20 +342,20 @@ function FinanceActions({ status, submitting, onApprove, onDecline, onMarkPaid }
   return (
     <>
       <button
-        className="primary-button finance-action-approve"
+        className="approve-button"
         type="button"
         onClick={onApprove}
         disabled={submitting}
       >
-        {submitting ? "Approving..." : "Finance Approve"}
+        {submitting ? "Approving..." : "Approve Request"}
       </button>
       <button
-        className="danger-button finance-action-decline"
+        className="danger-button"
         type="button"
-        onClick={onDecline}
+        onClick={onReject}
         disabled={submitting}
       >
-        Decline Request
+        Reject Request
       </button>
     </>
   );
@@ -401,111 +370,48 @@ function DetailField({ label, value, isStrong = false }) {
   );
 }
 
-function toRequestViewModel(request) {
-  const lineItems = (request.line_items ?? []).map((item) => ({
-    id: String(item.id),
-    date: item.expense_date,
-    itemName: item.item_service_name,
-    purpose: item.purpose_note,
+function toManagerDetailViewModel(request) {
+  const lineItems = (request.lineItems ?? request.line_items ?? []).map((item, index) => ({
+    id: String(item.id ?? index),
+    date: item.date ?? item.expense_date,
+    itemName: item.itemName ?? item.item_service_name ?? "Expense item",
+    purpose: item.purpose ?? item.purpose_note ?? "-",
     amount: Number(item.amount ?? 0),
-    fileUrl: item.file_url,
-    fileName: item.file_name,
   }));
-  const lineItemAttachments = lineItems
-    .filter((item) => item.fileUrl)
-    .map((item) => ({
-      id: `line-item-${item.id}`,
-      name: item.fileName || `Receipt for ${item.itemName}`,
-      url: item.fileUrl,
-    }));
-  const attachments = [
-    ...(request.attachments ?? []).map((attachment) => ({
-      id: String(attachment.id),
-      name: attachment.file_name ?? attachment.name ?? "Attachment",
-      url: attachment.file_url ?? attachment.url,
-    })),
-    ...lineItemAttachments,
-  ].filter((attachment) => attachment.url);
 
   return {
     id: formatRequestId(request.id),
-    employeeName: request.employee_name ?? `Employee #${request.employee_id ?? "Unknown"}`,
-    category: request.category_name ?? `Category #${request.category_id ?? "Unknown"}`,
-    submittedDate: request.created_at,
-    updatedDate: request.updated_at,
-    amount: Number(request.total_amount ?? 0),
+    employeeName:
+      request.employeeName ??
+      request.employee ??
+      request.employee_name ??
+      `Employee #${request.employeeId ?? request.employee_id ?? "Unknown"}`,
+    category:
+      request.category ??
+      request.requestType ??
+      request.category_name ??
+      `Category #${request.categoryId ?? request.category_id ?? "Unknown"}`,
+    submittedDate:
+      request.submittedDate ??
+      request.submittedOn ??
+      request.createdDate ??
+      request.created_at,
+    amount: Number(request.amount ?? request.total_amount ?? 0),
     status: request.status,
-    tripDateFrom: request.start_date,
-    tripDateTo: request.end_date,
-    rejectionReason: request.rejection_reason,
-    isLocked: Boolean(request.is_locked),
+    tripDateFrom:
+      request.tripDateFrom ??
+      request.tripStart ??
+      request.startDate ??
+      request.start_date,
+    tripDateTo:
+      request.tripDateTo ??
+      request.tripEnd ??
+      request.endDate ??
+      request.end_date,
+    isLocked: Boolean(request.isLocked ?? request.is_locked),
     lineItems,
-    attachments,
+    attachments: request.attachments ?? [],
   };
-}
-
-function getTimelineEvents(request) {
-  const events = [
-    {
-      title: "Submitted",
-      date: formatDate(request.submittedDate),
-    },
-    {
-      title: "Manager Review",
-      date: "Approved",
-    },
-  ];
-
-  if (request.status === "Pending Finance") {
-    events.push({
-      title: "Finance Review",
-      date: "Awaiting finance action",
-    });
-    return events;
-  }
-
-  if (request.status === FINANCE_APPROVED_STATUS) {
-    events.push({
-      title: "Finance Review",
-      date: "Approved",
-    });
-    return events;
-  }
-
-  if (request.status === PAID_STATUS) {
-    events.push(
-      {
-        title: "Finance Review",
-        date: "Approved",
-      },
-      {
-        title: "Payment",
-        date: "Paid",
-      },
-    );
-    return events;
-  }
-
-  if (request.status === REJECTED_STATUS) {
-    events.push({
-      title: "Finance Review",
-      date: request.rejectionReason || "Declined",
-    });
-    return events;
-  }
-
-  events.push({
-    title: "Finance Review",
-    date: request.status,
-  });
-  return events;
-}
-
-function readApiError(errorData) {
-  const detail = errorData.detail;
-  if (Array.isArray(detail)) return detail[0]?.msg;
-  if (typeof detail === "string") return detail;
-  return errorData.error ?? errorData.message;
 }
 
 function formatRequestId(id) {

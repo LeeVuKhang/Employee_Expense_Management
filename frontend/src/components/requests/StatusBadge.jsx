@@ -1,45 +1,30 @@
-// components/requests/StatusBadge.jsx
-// AC2: Color-coded badge  AC3: Whose turn indicator
-//
-//  Draft           → Blue   (#3B82F6)
-//  Pending Manager → Amber  (#D97706)
-//  Pending Finance → Purple (#7C3AED)
-//  Paid            → Green  (#059669)
-//  Rejected        → Red    (#DC2626)
-
 import { STATUS_CONFIG } from "../../data/mockRequests";
 
+const STATUS_COLORS = {
+  "Draft": { bg: "#dbeafe", color: "#1e40af" },
+  "Pending Manager": { bg: "#fef3c7", color: "#92400e" },
+  "Pending Finance": { bg: "#fef3c7", color: "#92400e" },
+  "Finance Approved": { bg: "#d1fae5", color: "#065f46" },
+  "Paid": { bg: "#d1fae5", color: "#065f46" },
+  "Rejected": { bg: "#fee2e2", color: "#991b1b" },
+  "Cancelled": { bg: "#f1f5f9", color: "#334155" },
+};
+
 export default function StatusBadge({ status }) {
-  const cfg = STATUS_CONFIG[status] ?? {
-    label: status,
-    color: "#6B7280",
-    bg: "#F3F4F6",
-    turn: null,
-  };
+  const cfg = STATUS_CONFIG[status] ?? { label: status };
+  const colors = STATUS_COLORS[status] ?? { bg: "#f1f5f9", color: "#334155" };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-      {/* AC2: Colored badge */}
+    <div className="status-badge-wrap">
       <span
+        className="status-badge"
         style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "4px 12px",
-          borderRadius: 9999,
-          fontSize: 12,
-          fontWeight: 600,
-          letterSpacing: "0.02em",
-          color: cfg.color,
-          backgroundColor: cfg.bg,
-          border: `1px solid ${cfg.color}33`,
-          whiteSpace: "nowrap",
+          color: colors.color,
+          backgroundColor: colors.bg,
         }}
       >
-        <span style={{ display: "none" }} />
         {cfg.label}
       </span>
-
     </div>
   );
 }
