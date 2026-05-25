@@ -154,10 +154,7 @@ export default function ManagerPendingRequestsDashboard() {
         )}
 
         {!isLoading && !errorMessage && filteredRequests.length > 0 && (
-          <PendingRequestsList
-            requests={filteredRequests}
-            onOpenRequest={(request) => navigate(`/finance/request/${request.id}`)}
-          />
+          <PendingRequestsList requests={filteredRequests} />
         )}
       </div>
     </section>
@@ -182,27 +179,24 @@ function DashboardSummaryCards({ summary, isLoading }) {
   )
 }
 
-function PendingRequestsList({ requests, onOpenRequest }) {
+function PendingRequestsList({ requests }) {
   return (
     <div className="manager-request-list">
       {requests.map((request) => (
         <PendingRequestCard
           key={request.id}
           request={request}
-          onOpenRequest={onOpenRequest}
         />
       ))}
     </div>
   )
 }
 
-function PendingRequestCard({ request, onOpenRequest }) {
+function PendingRequestCard({ request }) {
   return (
-    <button
+    <div
       className="manager-request-card"
-      type="button"
-      onClick={() => onOpenRequest(request)}
-      aria-label={`Open ${formatRequestId(request.id)} from ${request.employeeName}`}
+      aria-label={`Request ${formatRequestId(request.id)} from ${request.employeeName}`}
     >
       <span className="manager-request-avatar" aria-hidden="true">
         {getInitial(request.employeeName)}
@@ -218,9 +212,8 @@ function PendingRequestCard({ request, onOpenRequest }) {
       </span>
       <span className="manager-request-side">
         <strong>{formatCurrency(request.amount, request.currency)}</strong>
-        <span className="manager-request-arrow" aria-hidden="true">→</span>
       </span>
-    </button>
+    </div>
   )
 }
 
