@@ -12,6 +12,7 @@ import Navbar from "./components/layouts/Navbar";
 import ManagerPendingRequestsDashboard from "./components/requests/ManagerPendingRequestsDashboard";
 import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
 import FinancePage from "./pages/FinancePage";
+import LoginPage from "./pages/LoginPage";
 import MyRequests from "./pages/MyRequests";
 import NewExpenseRequest from "./pages/NewExpenseRequest";
 import RequestDetailPage from "./pages/RequestDetailPage";
@@ -21,6 +22,30 @@ const NEW_REQUEST_PAGE = "New Request";
 const MY_REQUESTS_PAGE = "My Requests";
 const REQUEST_DETAIL_PAGE = "Request Detail";
 const MANAGER_PENDING_PAGE = "Manager Pending";
+const AUTH_STORAGE_KEY = "eem.auth.user";
+
+function dashboardPathForRole(role) {
+  if (role === "Manager") return "/manager/pending-requests";
+  if (role === "Finance") return "/finance";
+  return "/my-requests";
+}
+
+function readStoredUser() {
+  try {
+    const rawUser = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function ProtectedRoute({ user, children }) {
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
 
 function pathForPage(page, options = {}) {
   if (page === NEW_REQUEST_PAGE) {
@@ -184,18 +209,61 @@ function ManagerPendingRequestsRoute() {
 }
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(() => readStoredUser());
+
+  function handleLogin(user) {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+    setCurrentUser(user);
+  }
+
+  const protect = (children) => (
+    <ProtectedRoute user={currentUser}>{children}</ProtectedRoute>
+  );
+
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/my-requests" replace />} />
-      <Route path="/my-requests" element={<MyRequestsRoute />} />
-      <Route path="/new-request" element={<NewExpenseRequestRoute />} />
-      <Route path="/requests/:requestId" element={<ExpenseRequestDetailRoute />} />
-      <Route path="/requests/:requestId/edit" element={<NewExpenseRequestRoute editMode />} />
-      <Route path="/finance" element={<FinancePage />} />
-      <Route path="/finance/request/:id" element={<RequestDetailPage />} />
-      <Route path="/manager" element={<Navigate to="/manager/pending-requests" replace />} />
-      <Route path="/manager/pending-requests" element={<ManagerPendingRequestsRoute />} />
-      <Route path="*" element={<Navigate to="/my-requests" replace />} />
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to={currentUser ? dashboardPathForRole(currentUser.role) : "/login"}
+            replace
+          />
+        }
+      />
+      <Route
+        path="/login"
+        element={
+          currentUser ? (
+            <Navigate to={dashboardPathForRole(currentUser.role)} replace />
+          ) : (
+            <LoginPage onLogin={handleLogin} />
+          )
+        }
+      />
+      <Route path="/my-requests" element={protect(<MyRequestsRoute />)} />
+      <Route path="/new-request" element={protect(<NewExpenseRequestRoute />)} />
+      <Route path="/requests/:requestId" element={protect(<ExpenseRequestDetailRoute />)} />
+      <Route path="/requests/:requestId/edit" element={protect(<NewExpenseRequestRoute editMode />)} />
+      <Route path="/finance" element={protect(<FinancePage />)} />
+      <Route path="/finance/request/:id" element={protect(<RequestDetailPage />)} />
+      <Route
+        path="/manager"
+        element={protect(<Navigate to="/manager/pending-requests" replace />)}
+      />
+      <Route
+        path="/manager/pending-requests"
+        element={protect(<ManagerPendingRequestsRoute />)}
+      />
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={currentUser ? dashboardPathForRole(currentUser.role) : "/login"}
+            replace
+          />
+        }
+      />
     </Routes>
   );
 }
