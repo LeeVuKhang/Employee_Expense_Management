@@ -229,6 +229,7 @@ export default function NewExpenseRequest({
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isDraft, setIsDraft] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -310,6 +311,58 @@ export default function NewExpenseRequest({
     setItemErrors((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
+  async function handleReceiptScan(file) {
+    if (!file) return;
+    setIsScanning(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/expenses/scan`, {
+        method: "POST",
+        body: form,
+      });
+
+      if (!res.ok) return;
+
+      const body = await res.json();
+      if (body.date) {
+        setStartDate(body.date);
+        setEndDate(body.date);
+      }
+      if (body.total_amount) {
+        setItems((current) => {
+          const next = [...current];
+          if (!next.length) next.push(emptyLineItem());
+          next[0] = { ...next[0], amount: String(body.total_amount) };
+          return next;
+        });
+      }
+      if (body.vendor_name) {
+        setItems((current) => {
+          const next = [...current];
+          if (!next.length) next.push(emptyLineItem());
+          next[0] = {
+            ...next[0],
+            name: body.vendor_name,
+            note: next[0].note || "",
+          };
+          return next;
+        });
+      }
+      if (body.category_id) {
+        const matchedCategory = categories.find((option) => option.id === body.category_id);
+        if (matchedCategory) {
+          setCategory(matchedCategory.name);
+        }
+        setCategoryId(body.category_id);
+      }
+    } catch (err) {
+      // Best-effort; silently ignore scan failures
+    } finally {
+      setIsScanning(false);
+    }
+  }
+
   function processFiles(newFiles) {
     const errs = [];
     const valid = [];
@@ -328,7 +381,12 @@ export default function NewExpenseRequest({
     if (errs.length > 0) errs.forEach((error) => addToast(error, "error"));
     setAttachments((current) => {
       const slots = MAX_FILES - current.length;
-      return [...current, ...valid.slice(0, slots)];
+      const chosen = valid.slice(0, slots);
+      if (chosen.length > 0) {
+        // Kick off a best-effort scan of the first selected receipt
+        handleReceiptScan(chosen[0]);
+      }
+      return [...current, ...chosen];
     });
   }
 
@@ -451,7 +509,7 @@ export default function NewExpenseRequest({
     );
   }
 
-  const isAnyLoading = loading || loadingDraft;
+  const isAnyLoading = loading || loadingDraft || isScanning;
   const categoryOptions = categories.some((option) => option.name === category)
     ? categories
     : [{ id: categoryId, name: category }, ...categories];
@@ -469,6 +527,30 @@ export default function NewExpenseRequest({
       <Toast toasts={toasts} remove={removeToast} />
 
       <main className="page-frame request-form-page">
+        {isScanning && (
+          <div
+            style={{
+              backgroundColor: "#e8f7ff",
+              border: "1px solid #9fd6ff",
+              borderRadius: "8px",
+              color: "#055160",
+              display: "flex",
+              gap: "12px",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: "20px",
+              padding: "14px 18px",
+            }}
+          >
+            <span style={{ fontSize: "1.1rem" }}>🤖</span>
+            <div>
+              <strong>AI is scanning your receipt...</strong>
+              <div style={{ opacity: 0.85, marginTop: "4px" }}>
+                Please wait while we auto-fill your expense details.
+              </div>
+            </div>
+          </div>
+        )}
         <div className="form-page-heading">
           <button
             aria-label="Back to My Requests"
@@ -599,7 +681,9 @@ export default function NewExpenseRequest({
                 role="button"
                 tabIndex={0}
               >
-                {attachments.length >= MAX_FILES ? (
+                {isScanning ? (
+                  <p className="upload-primary">AI is scanning your receipt...</p>
+                ) : attachments.length >= MAX_FILES ? (
                   <p className="upload-primary">Maximum {MAX_FILES} files reached</p>
                 ) : (
                   <>

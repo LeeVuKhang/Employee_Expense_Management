@@ -1,7 +1,9 @@
 import json
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
+from app.service.ocr_service import scan_receipt_for_data
+
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
@@ -198,3 +200,18 @@ def duplicate_my_expense_request(
 ) -> dict:
     duplicated = duplicate_expense_request(session, source, current_user_id)
     return to_expense_read(duplicated, session)
+@router.post("/scan")
+async def scan_expense_receipt(file: UploadFile = File(...)) -> dict:
+    """
+    POST /api/expenses/scan
+    Accepts a single file upload and returns OCR-guessed fields:
+    { date, total_amount, vendor_name, category_id }
+    """
+    try:
+        contents = await file.read()
+        result = scan_receipt_for_data(contents)
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
