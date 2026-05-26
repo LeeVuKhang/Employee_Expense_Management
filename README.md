@@ -19,6 +19,7 @@ A comprehensive full-stack application designed to streamline the process of sub
 
 Here is a high-level overview of the project's structure:
 
+```
 Employee_Expense_Management/
 ├── backend/
 │   ├── app/
@@ -33,17 +34,18 @@ Employee_Expense_Management/
 │   ├── .env.example         # Template for environment variables
 │   └── pyproject.toml       # Python dependencies and project metadata
 └── frontend/
-├── src/
-│   ├── api/             # API client functions for frontend-backend communication
-│   ├── components/      # Reusable UI components (Modals, Cards, Navbars)
-│   ├── data/            # Mock data and constants
-│   ├── hooks/           # Custom React hooks (e.g., useExpenseRequests)
-│   ├── pages/           # Top-level route components (Dashboard, Login, Detail Pages)
-│   ├── App.jsx          # Root React component
-│   └── main.jsx         # React DOM rendering entry point
-├── index.html           # HTML template
-├── package.json         # Node.js dependencies and scripts
-└── vite.config.js       # Vite bundler configuration
+    ├── src/
+    │   ├── api/             # API client functions for frontend-backend communication
+    │   ├── components/      # Reusable UI components (Modals, Cards, Navbars)
+    │   ├── data/            # Mock data and constants
+    │   ├── hooks/           # Custom React hooks (e.g., useExpenseRequests)
+    │   ├── pages/           # Top-level route components (Dashboard, Login, Detail Pages)
+    │   ├── App.jsx          # Root React component
+    │   └── main.jsx         # React DOM rendering entry point
+    ├── index.html           # HTML template
+    ├── package.json         # Node.js dependencies and scripts
+    └── vite.config.js       # Vite bundler configuration
+```
 
 ## Core Features & Functions
 
