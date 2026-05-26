@@ -6,6 +6,10 @@ from fastapi import HTTPException, status
 from app.model.expense import ExpenseLineItem, ExpenseRequest, RequestStatus, ExpenseCategory
 from app.model.user import User
 from app.schema.finance import FinanceExpenseRequestRead, FinancePendingListResponse, FinancePendingSummary
+from app.service.notification_service import (
+    create_request_paid_notification,
+    create_request_rejected_notification,
+)
 
 
 def get_finance_pending_requests(session: Session) -> FinancePendingListResponse:
@@ -124,9 +128,28 @@ def update_finance_request_status(
                 detail="rejection_reason is required when declining a request.",
             )
         expense.rejection_reason = rejection_reason.strip()
+        expense.current_processor_id = expense.employee_id
+
+    if new_status == RequestStatus.PAID:
+        expense.current_processor_id = expense.employee_id
 
     expense.status = new_status
     expense.is_locked = True  # Lock after Finance processes
+
+    if new_status == RequestStatus.REJECTED:
+        create_request_rejected_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+            rejection_reason=expense.rejection_reason,
+        )
+
+    if new_status == RequestStatus.PAID:
+        create_request_paid_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+        )
 
     session.add(
         RequestHistory(

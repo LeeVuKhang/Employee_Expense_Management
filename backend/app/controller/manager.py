@@ -19,6 +19,7 @@ from app.service.manager_dashboard_service import (
     require_manager,
 )
 from app.service.expense_service import to_expense_read
+from app.service.notification_service import create_request_rejected_notification
 
 router = APIRouter()
 
@@ -133,6 +134,14 @@ def update_manager_expense_request_status(
     expense.rejection_reason = rejection_reason
     if payload.status == RequestStatus.PENDING_FINANCE:
         expense.current_processor_id = _get_finance_processor_id(session)
+    if payload.status == RequestStatus.REJECTED:
+        expense.current_processor_id = expense.employee_id
+        create_request_rejected_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+            rejection_reason=rejection_reason,
+        )
 
     session.add(
         RequestHistory(

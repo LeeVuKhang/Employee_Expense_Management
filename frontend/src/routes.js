@@ -24,3 +24,9 @@ export const managerApiRoutes = {
   requestDetail: (expenseId) => `/api/manager/requests/${expenseId}`,
   requestStatus: (expenseId) => `/api/manager/requests/${expenseId}/status`,
 }
+
+export const notificationApiRoutes = {
+  list: '/api/notifications',
+  markRead: (notificationId) => `/api/notifications/${notificationId}/read`,
+  markAllRead: '/api/notifications/read-all',
+}

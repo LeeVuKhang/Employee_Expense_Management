@@ -90,6 +90,19 @@ export async function updateManagerExpenseRequestStatus(
   return toExpenseViewModel(expense)
 }
 
+export async function approveManagerExpenseRequest(expenseId) {
+  return updateManagerExpenseRequestStatus(expenseId, {
+    status: 'Pending Finance',
+  })
+}
+
+export async function rejectManagerExpenseRequest(expenseId, rejectionReason) {
+  return updateManagerExpenseRequestStatus(expenseId, {
+    status: 'Rejected',
+    rejectionReason,
+  })
+}
+
 export async function fetchManagerExpenseRequest(expenseId) {
   const expense = await requestExpense(managerApiRoutes.requestDetail(expenseId))
   return toExpenseViewModel(expense)
@@ -171,6 +184,7 @@ function toExpenseViewModel(expense) {
     tripDateTo: expense.end_date,
     amount: totalAmount,
     description: summarizeLineItems(lineItems, expense.rejection_reason),
+    rejectionReason: expense.rejection_reason ?? '',
     status: expense.status,
     processor,
     isLocked: Boolean(expense.is_locked),
