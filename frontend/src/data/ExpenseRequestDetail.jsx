@@ -34,6 +34,19 @@ function formatDate(value) {
   return `${Number(day)}/${Number(month)}/${year}`;
 }
 
+function convertS3ToHttp(url) {
+  if (!url) return url;
+  if (!url.startsWith("s3://")) return url;
+
+  // s3://bucket/key/path -> https://bucket.s3.amazonaws.com/key/path
+  const withoutPrefix = url.slice(5);
+  const parts = withoutPrefix.split("/");
+  const bucket = parts.shift();
+  const key = parts.join("/");
+  if (!bucket || !key) return url;
+  return `https://${bucket}.s3.amazonaws.com/${key}`;
+}
+
 function FieldValue({ label, value }) {
   return (
     <div>
@@ -109,11 +122,17 @@ export default function ExpenseRequestDetail({
 
     loadRequest();
 
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, [initialRequest, requestId]);
 
   const total = useMemo(
-    () => request?.lineItems.reduce((sum, lineItem) => sum + Number(lineItem.amount || 0), 0) ?? 0,
+    () =>
+      request?.lineItems.reduce(
+        (sum, lineItem) => sum + Number(lineItem.amount || 0),
+        0,
+      ) ?? 0,
     [request],
   );
 
@@ -136,7 +155,10 @@ export default function ExpenseRequestDetail({
 
     try {
       const duplicatedRequest = await duplicateExpenseRequest(nextRequest.id);
-      showNotice("success", `Request ${formatRequestId(nextRequest.id)} was duplicated.`);
+      showNotice(
+        "success",
+        `Request ${formatRequestId(nextRequest.id)} was duplicated.`,
+      );
       onNavigate?.("Request Detail", { request: duplicatedRequest });
     } catch (err) {
       showNotice("error", err.message);
@@ -154,7 +176,10 @@ export default function ExpenseRequestDetail({
     try {
       const cancelledRequest = await cancelExpenseRequest(cancelTarget.id);
       setRequest(cancelledRequest);
-      showNotice("success", `Request ${formatRequestId(cancelTarget.id)} was cancelled.`);
+      showNotice(
+        "success",
+        `Request ${formatRequestId(cancelTarget.id)} was cancelled.`,
+      );
     } catch (err) {
       showNotice("error", err.message);
     } finally {
@@ -199,7 +224,8 @@ export default function ExpenseRequestDetail({
               <div>
                 <h1>{formatRequestId(request.id)}</h1>
                 <p>
-                  Submitted by {request.employee} on {formatDate(request.submittedOn)}
+                  Submitted by {request.employee} on{" "}
+                  {formatDate(request.submittedOn)}
                 </p>
               </div>
 
@@ -219,7 +245,10 @@ export default function ExpenseRequestDetail({
                       value={`${request.tripStart} to ${request.tripEnd}`}
                     />
                     <FieldValue label="Status" value={request.status} />
-                    <FieldValue label="Total Amount" value={formatCurrency(total)} />
+                    <FieldValue
+                      label="Total Amount"
+                      value={formatCurrency(total)}
+                    />
                   </div>
                 </div>
 
@@ -230,13 +259,21 @@ export default function ExpenseRequestDetail({
 
                 <div className="card">
                   <h2>Attachments</h2>
-                  <p className="muted">Receipts and invoices for this request.</p>
+                  <p className="muted">
+                    Receipts and invoices for this request.
+                  </p>
                   <div className="attachment-box">
                     {request.attachments.length ? (
                       request.attachments.map((attachment) => (
-                        <span className="attachment-chip" key={attachment.id ?? attachment.fileName}>
-                          {attachment.fileName}
-                        </span>
+                        <a
+                          className="attachment-chip"
+                          key={attachment.id ?? attachment.name}
+                          href={convertS3ToHttp(attachment.url)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {attachment.name}
+                        </a>
                       ))
                     ) : (
                       <em>No attachments provided.</em>

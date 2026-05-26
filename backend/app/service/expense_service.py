@@ -7,9 +7,11 @@ from app.model.expense import (
     ExpenseCategory,
     ExpenseLineItem,
     ExpenseRequest,
+    Attachment,
     RequestHistory,
     RequestStatus,
 )
+from app.service.attachment_service import get_presigned_url
 from app.model.user import User
 from app.schema.expense import ExpenseLineItemCreate, ExpenseRequestCreate, ExpenseRequestUpdate
 
@@ -197,6 +199,23 @@ def duplicate_expense_request(
 
 
 def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
+    # build attachments with presigned URLs when possible
+    attachments = []
+    for attachment in session.exec(
+        select(Attachment).where(Attachment.expense_request_id == expense.id)
+    ).all():
+        att = attachment.model_dump()
+        bucket = att.get("s3_bucket")
+        key = att.get("s3_key")
+        if bucket and key:
+            presigned = get_presigned_url(bucket, key)
+            if presigned:
+                att["file_url"] = presigned
+            else:
+                # fallback to https public pattern if presigned couldn't be generated
+                att["file_url"] = f"https://{bucket}.s3.amazonaws.com/{key}"
+        attachments.append(att)
+
     return {
         **expense.model_dump(),
         "employee_name": _get_user_name(session, expense.employee_id),
@@ -206,4 +225,5 @@ def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
             line_item.model_dump()
             for line_item in _get_line_items(session, expense.id)
         ],
+        "attachments": attachments,
     }

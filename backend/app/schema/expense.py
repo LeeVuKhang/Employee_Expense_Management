@@ -85,3 +85,23 @@ class ExpenseRequestRead(BaseModel):
     created_at: datetime | None
     updated_at: datetime | None
     line_items: list[ExpenseLineItemRead] = Field(default_factory=list)
+    attachments: list["AttachmentRead"] = Field(default_factory=list)
+
+
+class AttachmentRead(BaseModel):
+    id: int
+    expense_request_id: int
+    file_name: str
+    file_url: str
+    s3_bucket: str | None = None
+    s3_key: str | None = None
+    content_type: str | None = None
+    file_size_bytes: int | None = None
+    uploaded_at: datetime | None = None
+
+
+# Rebuild models to resolve forward references (Pydantic v2)
+try:
+    ExpenseRequestRead.model_rebuild()
+except Exception:
+    pass

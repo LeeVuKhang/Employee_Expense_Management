@@ -10,7 +10,7 @@ const PENDING_MANAGER_STATUS = "Pending Manager";
 const APPROVED_FOR_FINANCE_STATUS = "Pending Finance";
 const REJECTED_STATUS = "Rejected";
 
-export default function ManagerRequestDetail() {
+export default function ManagerRequestDetail({ user }) {
   const { requestId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -29,7 +29,9 @@ export default function ManagerRequestDetail() {
 
   useEffect(() => {
     let isCurrent = true;
-    const fallbackRequest = routeRequest ? toManagerDetailViewModel(routeRequest) : null;
+    const fallbackRequest = routeRequest
+      ? toManagerDetailViewModel(routeRequest)
+      : null;
 
     async function loadRequest() {
       setLoading(!fallbackRequest);
@@ -68,11 +70,11 @@ export default function ManagerRequestDetail() {
     setActionError(null);
 
     try {
-      const updatedRequest = await updateManagerExpenseRequestStatus(requestId, {
+      const updated = await updateManagerExpenseRequestStatus(requestId, {
         status,
         rejectionReason,
       });
-      setRequest(toManagerDetailViewModel(updatedRequest));
+      setRequest(toManagerDetailViewModel(updated));
       return true;
     } catch (error) {
       setActionError(error.message);
@@ -109,7 +111,7 @@ export default function ManagerRequestDetail() {
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Team Requests" />
+      <Navbar activePage="Team Requests" role={user?.role} />
 
       <main className="page-frame manager-detail-frame">
         {loading && (
@@ -371,13 +373,15 @@ function DetailField({ label, value, isStrong = false }) {
 }
 
 function toManagerDetailViewModel(request) {
-  const lineItems = (request.lineItems ?? request.line_items ?? []).map((item, index) => ({
-    id: String(item.id ?? index),
-    date: item.date ?? item.expense_date,
-    itemName: item.itemName ?? item.item_service_name ?? "Expense item",
-    purpose: item.purpose ?? item.purpose_note ?? "-",
-    amount: Number(item.amount ?? 0),
-  }));
+  const lineItems = (request.lineItems ?? request.line_items ?? []).map(
+    (item, index) => ({
+      id: String(item.id ?? index),
+      date: item.date ?? item.expense_date,
+      itemName: item.itemName ?? item.item_service_name ?? "Expense item",
+      purpose: item.purpose ?? item.purpose_note ?? "-",
+      amount: Number(item.amount ?? 0),
+    }),
+  );
 
   return {
     id: formatRequestId(request.id),
@@ -410,8 +414,24 @@ function toManagerDetailViewModel(request) {
       request.end_date,
     isLocked: Boolean(request.isLocked ?? request.is_locked),
     lineItems,
-    attachments: request.attachments ?? [],
+    attachments: (request.attachments ?? []).map((att) => ({
+      id: String(att.id),
+      name: att.file_name ?? att.fileName ?? att.name,
+      url: convertS3ToHttp(att.file_url ?? att.fileUrl ?? att.url),
+    })),
   };
+}
+
+function convertS3ToHttp(url) {
+  if (!url) return url;
+  if (!url.startsWith("s3://")) return url;
+
+  const withoutPrefix = url.slice(5);
+  const parts = withoutPrefix.split("/");
+  const bucket = parts.shift();
+  const key = parts.join("/");
+  if (!bucket || !key) return url;
+  return `https://${bucket}.s3.amazonaws.com/${key}`;
 }
 
 function formatRequestId(id) {
@@ -439,7 +459,9 @@ function formatCurrency(value, currency = "USD") {
 function formatDate(value) {
   if (!value) return "-";
 
-  const date = new Date(String(value).includes("T") ? value : `${value}T00:00:00`);
+  const date = new Date(
+    String(value).includes("T") ? value : `${value}T00:00:00`,
+  );
   if (Number.isNaN(date.getTime())) {
     return value;
   }
