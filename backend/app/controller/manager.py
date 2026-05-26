@@ -5,8 +5,8 @@ from sqlmodel import Session, select
 
 from app.core.database import get_session
 from app.middleware import require_manager_role
-from app.model.expense import ExpenseRequest, RequestHistory, RequestStatus
-from app.model.user import User, UserRole
+from app.model.expense import ExpenseRequest
+from app.model.user import User
 from app.schema.expense import ExpenseRequestRead
 from app.schema.manager import (
     ManagerPendingRequestsRead,
@@ -17,6 +17,7 @@ from app.service.manager_dashboard_service import (
     get_pending_requests_summary_for_manager,
     list_pending_requests_for_manager,
     require_manager,
+    update_manager_request_status as update_manager_request_status_service,
 )
 from app.service.expense_service import to_expense_read
 
@@ -44,10 +45,6 @@ def _get_manager_request(
             detail="Expense request not found.",
         )
     return expense
-
-
-def _get_finance_processor_id(session: Session) -> int | None:
-    return session.exec(select(User.id).where(User.role == UserRole.FINANCE).order_by(User.id)).first()
 
 
 @router.get(
@@ -107,42 +104,12 @@ def update_manager_expense_request_status(
     current_manager: Annotated[User, Depends(require_manager_role)],
 ) -> dict:
     manager = require_manager(session, current_manager.id)
-    expense = _get_manager_request(session, manager.id, expense_id)
-
-    if expense.status != RequestStatus.PENDING_MANAGER or expense.is_locked:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Request is not in a state Manager can process.",
-        )
-
-    if payload.status not in {RequestStatus.PENDING_FINANCE, RequestStatus.REJECTED}:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Manager can only set status to: Pending Finance, Rejected",
-        )
-
-    rejection_reason = payload.rejection_reason.strip() if payload.rejection_reason else None
-    if payload.status == RequestStatus.REJECTED and not rejection_reason:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="rejection_reason is required when rejecting a request.",
-        )
-
-    expense.status = payload.status
-    expense.is_locked = True
-    expense.rejection_reason = rejection_reason
-    if payload.status == RequestStatus.PENDING_FINANCE:
-        expense.current_processor_id = _get_finance_processor_id(session)
-
-    session.add(
-        RequestHistory(
-            expense_request_id=expense.id,
-            actor_id=manager.id,
-            action_taken=payload.status.value,
-            comments=rejection_reason,
-        )
+    _get_manager_request(session, manager.id, expense_id)
+    updated = update_manager_request_status_service(
+        session=session,
+        expense_id=expense_id,
+        manager_id=manager.id,
+        new_status=payload.status,
+        rejection_reason=payload.rejection_reason,
     )
-    session.add(expense)
-    session.commit()
-    session.refresh(expense)
-    return to_expense_read(expense, session)
+    return to_expense_read(updated, session)

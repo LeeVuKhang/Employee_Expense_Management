@@ -103,19 +103,6 @@ export async function rejectManagerExpenseRequest(expenseId, rejectionReason) {
   })
 }
 
-export async function approveManagerExpenseRequest(expenseId) {
-  return updateManagerExpenseRequestStatus(expenseId, {
-    status: 'Pending Finance',
-  })
-}
-
-export async function rejectManagerExpenseRequest(expenseId, rejectionReason) {
-  return updateManagerExpenseRequestStatus(expenseId, {
-    status: 'Rejected',
-    rejectionReason,
-  })
-}
-
 export async function fetchManagerExpenseRequest(expenseId) {
   const expense = await requestExpense(managerApiRoutes.requestDetail(expenseId))
   return toExpenseViewModel(expense)

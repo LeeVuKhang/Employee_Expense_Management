@@ -57,6 +57,8 @@ Protected requests expect an `Authorization: Bearer <jwt>` header from `/api/aut
   - Query params: `page`, `page_size`, `sort`, `order`.
 - `GET /api/manager/expense-requests/pending/summary`
   - Return summary of manager's pending requests.
+- `GET /api/manager/requests/{expense_id}`
+  - Return full detail for a pending request assigned to current manager.
 - `PATCH /api/manager/requests/{expense_id}/status`
   - Manager review action (BE-1, BE-2).
   - Supported transitions from `Pending Manager`:
@@ -91,8 +93,8 @@ Success response behavior:
 Error responses for manager status update:
 
 - `400` if status is unsupported or rejection reason is blank.
-- `403` if user is not a manager, request is outside manager's team, or assigned to another processor.
-- `404` if expense request does not exist.
+- `403` if authenticated user is not in `Manager` role.
+- `404` if request does not exist, is outside manager's team, or is not currently assigned to the manager.
 - `409` if current status is not `Pending Manager`.
 - `422` if rejecting without `rejection_reason` in request body.
 

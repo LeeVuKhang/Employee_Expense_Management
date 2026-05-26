@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   approveManagerExpenseRequest,
-  fetchExpenseRequest,
+  fetchManagerExpenseRequest,
   rejectManagerExpenseRequest,
 } from "../api/expenses";
 import Navbar from "../components/layouts/Navbar";
@@ -57,10 +57,7 @@ export default function ManagerRequestDetail() {
       }
 
       try {
-        const fetchedRequest = await fetchExpenseRequest(
-          requestId,
-          fallbackRequest?.employeeId,
-        );
+        const fetchedRequest = await fetchManagerExpenseRequest(requestId);
         if (isCurrent) {
           setRequest(toManagerDetailViewModel(fetchedRequest));
         }
