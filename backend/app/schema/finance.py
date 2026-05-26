@@ -7,7 +7,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
 
 from app.model.expense import RequestStatus
-from app.schema.expense import ExpenseLineItemRead
+from app.schema.expense import AttachmentRead, ExpenseLineItemRead
 
 
 class FinancePendingSummary(BaseModel):
@@ -35,6 +35,7 @@ class FinanceExpenseRequestRead(BaseModel):
     created_at: datetime | None
     updated_at: datetime | None
     line_items: list[ExpenseLineItemRead]
+    attachments: list[AttachmentRead] = Field(default_factory=list)
 
 
 class FinancePendingListResponse(BaseModel):

@@ -98,7 +98,7 @@ def get_manager_expense_request(
 ) -> dict:
     manager = require_manager(session, current_manager.id)
     expense = _get_manager_request(session, manager.id, expense_id)
-    return to_expense_read(expense, session)
+    return to_expense_read(expense, session, include_attachments=True)
 
 
 @router.patch("/requests/{expense_id}/status", response_model=ExpenseRequestRead)
@@ -156,4 +156,4 @@ def update_manager_expense_request_status(
     session.add(expense)
     session.commit()
     session.refresh(expense)
-    return to_expense_read(expense, session)
+    return to_expense_read(expense, session, include_attachments=True)

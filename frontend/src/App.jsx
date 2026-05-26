@@ -12,7 +12,7 @@ import Navbar from "./components/layouts/Navbar";
 import ManagerPendingRequestsDashboard from "./components/requests/ManagerPendingRequestsDashboard";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import AccessDenied from "./pages/AccessDenied";
-import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
+import ExpenseRequestDetail from "./data/ExpenseRequestDetail";
 import FinancePage from "./pages/FinancePage";
 import LoginPage from "./pages/LoginPage";
 import ManagerRequestDetail from "./pages/ManagerRequestDetail";
@@ -128,7 +128,7 @@ function NewExpenseRequestRoute({ editMode = false }) {
   const navigate = usePageNavigation();
   const location = useLocation();
   const { requestId } = useParams();
-  const routeRequest = editMode ? location.state?.request ?? null : null;
+  const routeRequest = editMode ? (location.state?.request ?? null) : null;
   const [fetchedRequest, setFetchedRequest] = useState(null);
   const [loading, setLoading] = useState(editMode && !routeRequest);
   const [error, setError] = useState(null);
@@ -169,7 +169,9 @@ function NewExpenseRequestRoute({ editMode = false }) {
     }
 
     loadEditableRequest();
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, [editMode, requestId, routeRequest]);
 
   if (loading) {
@@ -201,14 +203,18 @@ function NewExpenseRequestRoute({ editMode = false }) {
   );
 }
 
-function ManagerPendingRequestsRoute() {
+function ManagerPendingRequestsRoute({ user }) {
   const navigate = usePageNavigation();
 
   return (
     <div className="app-shell">
-      <Navbar activePage={MANAGER_PENDING_PAGE} onNavigate={navigate} />
+      <Navbar
+        activePage={MANAGER_PENDING_PAGE}
+        onNavigate={navigate}
+        role={user?.role}
+      />
       <main className="page-frame">
-        <ManagerPendingRequestsDashboard />
+        <ManagerPendingRequestsDashboard user={user} />
       </main>
     </div>
   );
@@ -226,7 +232,9 @@ function AppRoutes() {
   const { user } = useAuth();
   const protect = (children) => <ProtectedRoute>{children}</ProtectedRoute>;
   const protectRole = (allowedRoles, children) => (
-    <RoleProtectedRoute allowedRoles={allowedRoles}>{children}</RoleProtectedRoute>
+    <RoleProtectedRoute allowedRoles={allowedRoles}>
+      {children}
+    </RoleProtectedRoute>
   );
 
   return (
@@ -257,32 +265,50 @@ function AppRoutes() {
       />
       <Route
         path="/new-request"
-        element={protectRole(["Employee", "Manager"], <NewExpenseRequestRoute />)}
+        element={protectRole(
+          ["Employee", "Manager"],
+          <NewExpenseRequestRoute />,
+        )}
       />
       <Route
         path="/requests/:requestId"
-        element={protectRole(["Employee", "Manager"], <ExpenseRequestDetailRoute />)}
+        element={protectRole(
+          ["Employee", "Manager"],
+          <ExpenseRequestDetailRoute />,
+        )}
       />
       <Route
         path="/requests/:requestId/edit"
-        element={protectRole(["Employee", "Manager"], <NewExpenseRequestRoute editMode />)}
+        element={protectRole(
+          ["Employee", "Manager"],
+          <NewExpenseRequestRoute editMode />,
+        )}
       />
-      <Route path="/finance" element={protectRole(["Finance"], <FinancePage />)} />
+      <Route
+        path="/finance"
+        element={protectRole(["Finance"], <FinancePage />)}
+      />
       <Route
         path="/finance/request/:id"
         element={protectRole(["Finance"], <RequestDetailPage />)}
       />
       <Route
         path="/manager"
-        element={protectRole(["Manager"], <Navigate to="/manager/pending-requests" replace />)}
+        element={protectRole(
+          ["Manager"],
+          <Navigate to="/manager/pending-requests" replace />,
+        )}
       />
       <Route
         path="/manager/pending-requests"
-        element={protectRole(["Manager"], <ManagerPendingRequestsRoute />)}
+        element={protectRole(
+          ["Manager"],
+          <ManagerPendingRequestsRoute user={user} />,
+        )}
       />
       <Route
         path="/manager/requests/:requestId"
-        element={protectRole(["Manager"], <ManagerRequestDetail />)}
+        element={protectRole(["Manager"], <ManagerRequestDetail user={user} />)}
       />
       <Route
         path="*"

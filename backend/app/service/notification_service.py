@@ -13,6 +13,10 @@ def notification_title_for_message(message: str) -> str:
         return "Expense Request Paid"
     if "rejected" in lowered_message:
         return "Expense Request Rejected"
+    if "approved by manager" in lowered_message:
+        return "Expense Request Approved by Manager"
+    if "approved by finance" in lowered_message:
+        return "Expense Request Approved by Finance"
     return "Expense Notification"
 
 
@@ -22,6 +26,10 @@ def notification_type_for_message(message: str) -> str:
         return "REQUEST_PAID"
     if "rejected" in lowered_message:
         return "REQUEST_REJECTED"
+    if "approved by manager" in lowered_message:
+        return "REQUEST_MANAGER_APPROVED"
+    if "approved by finance" in lowered_message:
+        return "REQUEST_FINANCE_APPROVED"
     return "EXPENSE_NOTIFICATION"
 
 
@@ -68,6 +76,40 @@ def create_request_paid_notification(
         message=(
             f"Your request {format_request_id(request_id)} has been marked as paid. "
             "Your money is on the way."
+        ),
+    )
+    session.add(notification)
+    return notification
+
+
+def create_manager_approved_notification(
+    session: Session,
+    employee_id: int,
+    request_id: int,
+) -> Notification:
+    notification = Notification(
+        user_id=employee_id,
+        expense_request_id=request_id,
+        message=(
+            f"Expense request {format_request_id(request_id)} was approved by Manager "
+            "and moved to Pending Finance."
+        ),
+    )
+    session.add(notification)
+    return notification
+
+
+def create_finance_approved_notification(
+    session: Session,
+    employee_id: int,
+    request_id: int,
+) -> Notification:
+    notification = Notification(
+        user_id=employee_id,
+        expense_request_id=request_id,
+        message=(
+            f"Expense request {format_request_id(request_id)} was approved by Finance "
+            "and is awaiting payment."
         ),
     )
     session.add(notification)
@@ -132,6 +174,18 @@ def queue_status_change_notification(
         )
     if new_status == RequestStatus.PAID:
         return create_request_paid_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+        )
+    if new_status == RequestStatus.PENDING_FINANCE:
+        return create_manager_approved_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+        )
+    if new_status == RequestStatus.FINANCE_APPROVED:
+        return create_finance_approved_notification(
             session=session,
             employee_id=expense.employee_id,
             request_id=expense.id,

@@ -7,6 +7,7 @@ from app.model.expense import ExpenseLineItem, ExpenseRequest, RequestStatus, Ex
 from app.model.user import User
 from app.schema.finance import FinanceExpenseRequestRead, FinancePendingListResponse, FinancePendingSummary
 from app.service.notification_service import (
+    create_finance_approved_notification,
     create_request_paid_notification,
     create_request_rejected_notification,
 )
@@ -142,6 +143,13 @@ def update_finance_request_status(
             employee_id=expense.employee_id,
             request_id=expense.id,
             rejection_reason=expense.rejection_reason,
+        )
+
+    if new_status == RequestStatus.FINANCE_APPROVED:
+        create_finance_approved_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
         )
 
     if new_status == RequestStatus.PAID:
