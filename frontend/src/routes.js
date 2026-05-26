@@ -16,6 +16,8 @@ export const expenseApiRoutes = {
   detail: (expenseId) => `/api/expenses/${expenseId}`,
   cancel: (expenseId) => `/api/expenses/${expenseId}/cancel`,
   duplicate: (expenseId) => `/api/expenses/${expenseId}/duplicate`,
+  attachmentDownload: (expenseId, attachmentId) =>
+    `/api/expenses/${expenseId}/attachments/${attachmentId}/download-url`,
 }
 
 export const managerApiRoutes = {
