@@ -40,9 +40,60 @@ function readStoredUser() {
   }
 }
 
-function ProtectedRoute({ user, children }) {
+// AC3: Friendly Access Denied Page
+function AccessDenied() {
+  const navigate = useNavigate();
+  return (
+    <div className="app-shell">
+      <main className="page-frame flex-center" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
+        <div className="card text-center" style={{ padding: '3rem', maxWidth: '400px' }}>
+          <h2>Access Denied</h2>
+          <p style={{ margin: '1rem 0' }}>You do not have permission to view this page.</p>
+          <button 
+            onClick={() => navigate("/")} 
+            className="btn btn-primary"
+            style={{ padding: '0.75rem 1.5rem', cursor: 'pointer', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '4px' }}
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function NotFound({ user }) {
+  const navigate = useNavigate();
+  const destination = user ? dashboardPathForRole(user.role) : "/login";
+
+  return (
+    <div className="app-shell">
+      <main className="page-frame flex-center" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh" }}>
+        <div className="card text-center" style={{ padding: "3rem", maxWidth: "420px" }}>
+          <h2>Page Not Found</h2>
+          <p style={{ margin: "1rem 0" }}>The page you requested does not exist.</p>
+          <button
+            onClick={() => navigate(destination)}
+            className="btn btn-primary"
+            style={{ padding: "0.75rem 1.5rem", cursor: "pointer", backgroundColor: "#0070f3", color: "white", border: "none", borderRadius: "4px" }}
+          >
+            {user ? "Back to Dashboard" : "Go to Login"}
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// AC1: Strict Route Separation via allowedRoles
+function ProtectedRoute({ user, allowedRoles, children }) {
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check if the route is restricted and user lacks the required role
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <AccessDenied />;
   }
 
   return children;
@@ -53,25 +104,20 @@ function pathForPage(page, options = {}) {
     if (options.mode === "edit" && options.request?.id) {
       return `/requests/${options.request.id}/edit`;
     }
-
     return "/new-request";
   }
-
   if (page === REQUEST_DETAIL_PAGE) {
     const requestId = options.request?.id ?? options.requestId;
     return requestId ? `/requests/${requestId}` : "/my-requests";
   }
-
   if (page === MANAGER_PENDING_PAGE) {
     return "/manager/pending-requests";
   }
-
   return "/my-requests";
 }
 
 function usePageNavigation() {
   const routerNavigate = useNavigate();
-
   return (page, options = {}) => {
     routerNavigate(pathForPage(page, options), {
       replace: Boolean(options.replace),
@@ -133,26 +179,21 @@ function NewExpenseRequestRoute({ editMode = false }) {
 
     async function loadEditableRequest() {
       setError(null);
-
       if (!editMode) {
         setFetchedRequest(null);
         setLoading(false);
         return;
       }
-
       if (routeRequest) {
         setFetchedRequest(null);
         setLoading(false);
         return;
       }
-
       if (!requestId) {
         setLoading(false);
         return;
       }
-
       setLoading(true);
-
       try {
         const request = await fetchExpenseRequest(requestId);
         if (!ignore) setFetchedRequest(request);
@@ -170,7 +211,6 @@ function NewExpenseRequestRoute({ editMode = false }) {
   if (loading) {
     return <RouteFeedback>Loading expense request...</RouteFeedback>;
   }
-
   if (error) {
     return <RouteFeedback type="error">{error}</RouteFeedback>;
   }
@@ -189,7 +229,6 @@ function NewExpenseRequestRoute({ editMode = false }) {
           navigate(REQUEST_DETAIL_PAGE, { request: savedRequest });
           return;
         }
-
         navigate(MY_REQUESTS_PAGE);
       }}
     />
@@ -212,13 +251,25 @@ function ManagerPendingRequestsRoute() {
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => readStoredUser());
 
+  useEffect(() => {
+    function handleLogout() {
+      setCurrentUser(null);
+    }
+
+    window.addEventListener("eem:logout", handleLogout);
+    return () => window.removeEventListener("eem:logout", handleLogout);
+  }, []);
+
   function handleLogin(user) {
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
     setCurrentUser(user);
   }
 
-  const protect = (children) => (
-    <ProtectedRoute user={currentUser}>{children}</ProtectedRoute>
+  // Helper to wrap routes with role enforcement
+  const protect = (children, allowedRoles = null) => (
+    <ProtectedRoute user={currentUser} allowedRoles={allowedRoles}>
+      {children}
+    </ProtectedRoute>
   );
 
   return (
@@ -242,32 +293,35 @@ export default function App() {
           )
         }
       />
+      
+      {/* General authenticated routes (Assume any user can submit personal expenses) */}
       <Route path="/my-requests" element={protect(<MyRequestsRoute />)} />
       <Route path="/new-request" element={protect(<NewExpenseRequestRoute />)} />
       <Route path="/requests/:requestId" element={protect(<ExpenseRequestDetailRoute />)} />
       <Route path="/requests/:requestId/edit" element={protect(<NewExpenseRequestRoute editMode />)} />
-      <Route path="/finance" element={protect(<FinancePage />)} />
-      <Route path="/finance/request/:id" element={protect(<RequestDetailPage />)} />
+      
+      {/* Finance restricted routes */}
+      <Route path="/finance" element={protect(<FinancePage />, ["Finance"])} />
+      <Route path="/finance/request/:id" element={protect(<RequestDetailPage />, ["Finance"])} />
+      
+      {/* Manager restricted routes */}
       <Route
         path="/manager"
-        element={protect(<Navigate to="/manager/pending-requests" replace />)}
+        element={protect(<Navigate to="/manager/pending-requests" replace />, ["Manager"])}
       />
       <Route
         path="/manager/pending-requests"
-        element={protect(<ManagerPendingRequestsRoute />)}
+        element={protect(<ManagerPendingRequestsRoute />, ["Manager"])}
       />
       <Route
         path="/manager/requests/:requestId"
-        element={protect(<ManagerRequestDetail />)}
+        element={protect(<ManagerRequestDetail />, ["Manager"])}
       />
+      
+      {/* Catch-all */}
       <Route
         path="*"
-        element={
-          <Navigate
-            to={currentUser ? dashboardPathForRole(currentUser.role) : "/login"}
-            replace
-          />
-        }
+        element={<NotFound user={currentUser} />}
       />
     </Routes>
   );

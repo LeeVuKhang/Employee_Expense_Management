@@ -4,6 +4,7 @@ import {
   fetchExpenseRequest,
   updateManagerExpenseRequestStatus,
 } from "../api/expenses";
+import RoleGuard from "../components/auth/RoleGuard";
 import Navbar from "../components/layouts/Navbar";
 
 const PENDING_MANAGER_STATUS = "Pending Manager";
@@ -340,24 +341,26 @@ function ManagerActions({ isLocked, status, submitting, onApprove, onReject }) {
   }
 
   return (
-    <>
-      <button
-        className="approve-button"
-        type="button"
-        onClick={onApprove}
-        disabled={submitting}
-      >
-        {submitting ? "Approving..." : "Approve Request"}
-      </button>
-      <button
-        className="danger-button"
-        type="button"
-        onClick={onReject}
-        disabled={submitting}
-      >
-        Reject Request
-      </button>
-    </>
+    <RoleGuard allowedRoles={["Manager"]}>
+      <>
+        <button
+          className="approve-button"
+          type="button"
+          onClick={onApprove}
+          disabled={submitting}
+        >
+          {submitting ? "Approving..." : "Approve Request"}
+        </button>
+        <button
+          className="danger-button"
+          type="button"
+          onClick={onReject}
+          disabled={submitting}
+        >
+          Reject Request
+        </button>
+      </>
+    </RoleGuard>
   );
 }
 

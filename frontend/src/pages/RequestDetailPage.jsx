@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Navbar from "../components/layouts/Navbar";
+import RoleGuard from "../components/auth/RoleGuard";
 
 const FINANCE_APPROVED_STATUS = "Finance Approved";
 const PAID_STATUS = "Paid";
@@ -350,14 +351,16 @@ export default function RequestDetailPage() {
 function FinanceActions({ status, submitting, onApprove, onDecline, onMarkPaid }) {
   if (status === FINANCE_APPROVED_STATUS) {
     return (
-      <button
-        className="primary-button finance-action-paid"
-        type="button"
-        onClick={onMarkPaid}
-        disabled={submitting}
-      >
-        {submitting ? "Marking as Paid..." : "Mark as Paid"}
-      </button>
+      <RoleGuard allowedRoles={["Finance"]}>
+        <button
+          className="primary-button finance-action-paid"
+          type="button"
+          onClick={onMarkPaid}
+          disabled={submitting}
+        >
+          {submitting ? "Marking as Paid..." : "Mark as Paid"}
+        </button>
+      </RoleGuard>
     );
   }
 
@@ -365,30 +368,31 @@ function FinanceActions({ status, submitting, onApprove, onDecline, onMarkPaid }
     return (
       <div className="readonly-state">
         <strong>No finance action available.</strong>
-        <span>This request is currently {status}.</span>
       </div>
     );
   }
 
   return (
-    <>
-      <button
-        className="primary-button finance-action-approve"
-        type="button"
-        onClick={onApprove}
-        disabled={submitting}
-      >
-        {submitting ? "Approving..." : "Finance Approve"}
-      </button>
-      <button
-        className="danger-button finance-action-decline"
-        type="button"
-        onClick={onDecline}
-        disabled={submitting}
-      >
-        Decline Request
-      </button>
-    </>
+    <RoleGuard allowedRoles={["Finance"]}>
+      <>
+        <button
+          className="primary-button finance-action-approve"
+          type="button"
+          onClick={onApprove}
+          disabled={submitting}
+        >
+          {submitting ? "Approving..." : "Approve Request"}
+        </button>
+        <button
+          className="secondary-button finance-action-decline"
+          type="button"
+          onClick={onDecline}
+          disabled={submitting}
+        >
+          Decline Request
+        </button>
+      </>
+    </RoleGuard>
   );
 }
 

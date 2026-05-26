@@ -1,4 +1,6 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+
+const AUTH_STORAGE_KEY = "eem.auth.user";
 
 const ROLE_NAV_ITEMS = {
   Employee: [
@@ -27,8 +29,15 @@ export default function Navbar({
   onNavigate,
   role,
 }) {
+  const navigate = useNavigate();
   const currentRole = role ?? inferRole(activePage, navItems);
   const items = navItems ?? ROLE_NAV_ITEMS[currentRole] ?? ROLE_NAV_ITEMS.Employee;
+
+  function handleLogout() {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.dispatchEvent(new Event("eem:logout"));
+    navigate("/login", { replace: true });
+  }
 
   return (
     <header className="navbar">
@@ -65,7 +74,7 @@ export default function Navbar({
           <span className="navbar-role-name">{currentRole}</span>
           <span className="navbar-role-label">Active Role</span>
         </div>
-        <button className="navbar-logout" type="button">
+        <button className="navbar-logout" type="button" onClick={handleLogout}>
           Logout
         </button>
       </div>
