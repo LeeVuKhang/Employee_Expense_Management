@@ -115,7 +115,10 @@ async def _payload_from_request(
                 payload_data["line_items"] = payload_data["lineItems"]
 
             employee_id = _parse_employee_id(
-                payload_data.get("employee_id") or payload_data.get("employeeId") or form.get("employeeId") or x_user_id
+                payload_data.get("employee_id")
+                or payload_data.get("employeeId")
+                or form.get("employeeId")
+                or current_user_id
             )
         else:
             # Fallback nếu React bóc tách phẳng rời rạc từng trường text
@@ -136,7 +139,9 @@ async def _payload_from_request(
                 "status": RequestStatus.DRAFT if _parse_bool(form.get("isDraft")) else RequestStatus.PENDING_MANAGER,
                 "line_items": line_items,
             }
-            employee_id = _parse_employee_id(form.get("employeeId") or form.get("employee_id") or x_user_id)
+            employee_id = _parse_employee_id(
+                form.get("employeeId") or form.get("employee_id") or current_user_id
+            )
 
         # Làm sạch mảng line_items con
         if "line_items" in payload_data and isinstance(payload_data["line_items"], list):
@@ -145,7 +150,9 @@ async def _payload_from_request(
     else:
         # Xử lý dữ liệu JSON Raw truyền thống khi không có file ảnh
         body = await request.json()
-        employee_id = _parse_employee_id(body.get("employeeId") or body.get("employee_id") or x_user_id)
+        employee_id = _parse_employee_id(
+            body.get("employeeId") or body.get("employee_id") or current_user_id
+        )
         
         raw_items = body.get("lineItems") or body.get("line_items") or []
         payload_data = {
