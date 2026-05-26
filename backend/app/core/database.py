@@ -16,9 +16,11 @@ def _normalize_database_url(database_url: str) -> str:
     return database_url
 
 
-def _connect_args(database_url: str) -> dict[str, bool]:
+def _connect_args(database_url: str) -> dict[str, object]:
     if database_url.startswith("sqlite"):
         return {"check_same_thread": False}
+    if database_url.startswith("postgresql+psycopg"):
+        return {"prepare_threshold": None}
     return {}
 
 
