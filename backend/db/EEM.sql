@@ -91,6 +91,9 @@ CREATE TABLE attachments (
 
     file_name VARCHAR(255) NOT NULL,
     file_url VARCHAR(1024) NOT NULL,
+    s3_bucket VARCHAR(255) NOT NULL,
+    s3_key VARCHAR(1024) NOT NULL,
+    content_type VARCHAR(255),
     file_size_bytes BIGINT NOT NULL,
 
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

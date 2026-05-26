@@ -50,6 +50,20 @@ class ExpenseRequestCreate(ExpenseRequestBase):
     status: RequestStatus = RequestStatus.DRAFT
     line_items: list[ExpenseLineItemCreate] = Field(default_factory=list)
 
+    # Thêm hàm này để xử lý bóc tách khi nhận dữ liệu từ FormData (khi có file đính kèm)
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate_to_json
+
+    @classmethod
+    def validate_to_json(cls, value):
+        import json
+        if isinstance(value, str):
+            try:
+                return cls(**json.loads(value))
+            except Exception as e:
+                raise ValueError(f"Dữ liệu JSON trong FormData không hợp lệ: {str(e)}")
+        return value
 
 class ExpenseRequestUpdate(BaseModel):
     category_id: int | None = None
