@@ -18,6 +18,7 @@ from app.service.manager_dashboard_service import (
     list_pending_requests_for_manager,
     require_manager,
 )
+from app.service.notification_service import queue_status_change_notification
 from app.service.expense_service import to_expense_read
 from app.service.notification_service import create_request_rejected_notification
 
@@ -132,6 +133,7 @@ def update_manager_expense_request_status(
     expense.status = payload.status
     expense.is_locked = True
     expense.rejection_reason = rejection_reason
+    action_taken = "Rejected"
     if payload.status == RequestStatus.PENDING_FINANCE:
         expense.current_processor_id = _get_finance_processor_id(session)
     if payload.status == RequestStatus.REJECTED:
@@ -147,7 +149,7 @@ def update_manager_expense_request_status(
         RequestHistory(
             expense_request_id=expense.id,
             actor_id=manager.id,
-            action_taken=payload.status.value,
+            action_taken=action_taken,
             comments=rejection_reason,
         )
     )

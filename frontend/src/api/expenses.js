@@ -114,20 +114,14 @@ export async function fetchExpenseRequest(expenseId) {
 }
 
 export async function createExpenseRequest(payload) {
-  const isFormData = payload instanceof FormData
-  const expense = await requestExpense(
-    expenseApiRoutes.list,
-    isFormData
-      ? {
-          method: 'POST',
-          body: payload,
-        }
-      : {
-          method: 'POST',
-          body: JSON.stringify(toExpenseApiPayload(payload, { includeStatus: true })),
-        },
-  )
-  return toExpenseViewModel(expense)
+  const apiPayload = toExpenseApiPayload(payload, { includeStatus: true });
+
+  const expense = await requestExpense(expenseApiRoutes.list, {
+    method: 'POST',
+    // Bỏ JSON.stringify nếu apiPayload đã là một thực thể FormData
+    body: apiPayload instanceof FormData ? apiPayload : JSON.stringify(apiPayload),
+  });
+  return toExpenseViewModel(expense);
 }
 
 export async function updateExpenseRequest(expenseId, payload) {
@@ -258,21 +252,37 @@ function toManagerPendingRequestViewModel(request) {
 }
 
 function toExpenseApiPayload(expense, options = {}) {
-  const payload = {
-    category_id: Number(expense.categoryId),
-    start_date: expense.tripStart,
-    end_date: expense.tripEnd,
-    line_items: expense.lineItems.map((lineItem) => ({
-      expense_date: lineItem.date,
-      item_service_name: lineItem.itemName,
-      purpose_note: lineItem.purpose,
-      amount: lineItem.amount,
+  // Lấy ngày hiện tại dạng YYYY-MM-DD làm phương án dự phòng (Fallback)
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // 1. Tạo cấu trúc Object khớp chính xác với hệ thống
+  const rawPayload = {
+    category_id: Number(expense.categoryId || expense.category_id || 1),
+    start_date: expense.tripStart || expense.tripDateFrom || expense.submittedDate || todayStr,
+    end_date: expense.tripEnd || expense.tripDateTo || expense.submittedDate || todayStr,
+    line_items: (expense.lineItems || expense.line_items || []).map((lineItem) => ({
+      expense_date: lineItem.date || lineItem.expense_date || todayStr,
+      item_service_name: lineItem.itemName || lineItem.item_service_name || "Expenses Item",
+      purpose_note: lineItem.purpose || lineItem.purpose_note || "No note provided",
+      amount: Number(lineItem.amount || 0),
     })),
-  }
+  };
 
   if (options.includeStatus) {
-    payload.status = expense.status
+    rawPayload.status = expense.status || 'Draft';
   }
 
-  return payload
+  // Thu thập file ảnh chuẩn xác
+  const fileToUpload = expense.file || (expense.attachments && expense.attachments[0]);
+
+  // 2. NẾU CÓ FILE ĐÍNH KÈM: Đóng gói đồng nhất dữ liệu vào key 'data'
+  if (fileToUpload) {
+    const formData = new FormData();
+    formData.append('file', fileToUpload); 
+    formData.append('data', JSON.stringify(rawPayload)); 
+    return formData;
+  }
+
+  // 3. Nếu KHÔNG CÓ FILE: Trả về object thường gửi JSON truyền thống
+  return rawPayload;
 }
