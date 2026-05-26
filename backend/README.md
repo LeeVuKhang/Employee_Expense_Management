@@ -20,20 +20,9 @@ Copy-Item .env.example .env
 uv run uvicorn app.main:app --reload
 ```
 
-## Authentication
+Protected requests expect an `Authorization: Bearer <jwt>` header from `/api/auth/login`.
 
-- All `/api/*` endpoints require `X-User-Id` header.
-- `GET /health` does not require authentication.
-
-Example:
-
-```http
-X-User-Id: 3
-```
-
-## API Details
-
-### Health
+## Implemented APIs
 
 - `GET /health`
   - Returns service health status.

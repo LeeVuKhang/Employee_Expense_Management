@@ -146,7 +146,7 @@ export default function ManagerRequestDetail() {
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Team Requests" role="Manager" />
+      <Navbar activePage="Team Requests" />
 
       <main className="page-frame manager-detail-frame">
         <ToastStack toasts={toasts} onDismiss={dismissToast} />

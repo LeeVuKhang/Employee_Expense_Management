@@ -11,6 +11,10 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./dev.db"
 
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 1440
+
     supabase_url: AnyUrl | None = None
     supabase_key: str | None = None
 

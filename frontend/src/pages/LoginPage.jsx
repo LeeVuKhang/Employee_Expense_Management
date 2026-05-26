@@ -1,61 +1,69 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const DEMO_USERS = [
   {
     role: "Employee",
     fullName: "Employee Demo",
     email: "employee@eem.local",
-    password: "demo123",
   },
   {
     role: "Manager",
     fullName: "Manager Demo",
     email: "manager@eem.local",
-    password: "demo123",
   },
   {
     role: "Finance",
     fullName: "Finance Demo",
     email: "finance@eem.local",
-    password: "demo123",
   },
 ];
 
-function resolveUser(email) {
-  const normalizedEmail = email.trim().toLowerCase();
-  const demoUser = DEMO_USERS.find((user) => user.email === normalizedEmail);
-
-  return demoUser ?? {
-    role: "Employee",
-    fullName: "Employee Demo",
-    email: normalizedEmail || "employee@eem.local",
-  };
+function dashboardForRole(role) {
+  if (role === "Manager") return "/manager/pending-requests";
+  if (role === "Finance") return "/finance";
+  return "/my-requests";
 }
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const canSubmit = useMemo(
-    () => email.trim().length > 0 && password.trim().length > 0,
-    [email, password],
+    () => email.trim().length > 0 && password.trim().length > 0 && !loading,
+    [email, loading, password],
   );
 
-  function submitLogin(event) {
+  async function submitLogin(event) {
     event.preventDefault();
     if (!canSubmit) return;
 
-    onLogin(resolveUser(email));
+    await runLogin(email, password);
   }
 
-  function handleDemoUser(user) {
+  async function runLogin(nextEmail, nextPassword) {
+    setError("");
+    setLoading(true);
+
+    try {
+      const user = await login(nextEmail, nextPassword);
+      navigate(dashboardForRole(user.role), { replace: true });
+    } catch (err) {
+      setError(err.message || "Invalid email or password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDemoUser(user) {
     setEmail(user.email);
-    setPassword(user.password);
-    onLogin({
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-    });
+    setPassword("demo123");
+    await runLogin(user.email, "demo123");
   }
 
   return (
@@ -99,8 +107,14 @@ export default function LoginPage({ onLogin }) {
             </label>
 
             <button className="login-submit" type="submit" disabled={!canSubmit}>
-              Sign in
+              {loading ? "Signing in..." : "Sign in"}
             </button>
+
+            {error && (
+              <p className="modal-error-text" role="alert">
+                {error}
+              </p>
+            )}
           </form>
 
           <div className="demo-access">
@@ -111,6 +125,7 @@ export default function LoginPage({ onLogin }) {
                   key={user.role}
                   type="button"
                   onClick={() => handleDemoUser(user)}
+                  disabled={loading}
                 >
                   {user.role}
                 </button>

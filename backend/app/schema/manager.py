@@ -38,11 +38,11 @@ class ManagerPendingSummaryRead(BaseModel):
 
 
 class ManagerStatusUpdateRequest(BaseModel):
-    status: RequestStatus
-    rejection_reason: str | None = Field(
-        default=None,
-        description="Required when status is 'Rejected'.",
+    status: RequestStatus = Field(
+        ...,
+        description="Target status: 'Pending Finance' or 'Rejected'",
     )
+    rejection_reason: str | None = Field(default=None, min_length=1, max_length=1000)
 
     @model_validator(mode="after")
     def validate_rejection_reason(self) -> "ManagerStatusUpdateRequest":
