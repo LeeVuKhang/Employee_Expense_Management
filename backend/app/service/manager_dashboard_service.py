@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.model.expense import ExpenseCategory, ExpenseRequest, RequestHistory, RequestStatus
 from app.model.user import User, UserRole
+from app.service.notification_service import queue_status_change_notification
 
 ManagerPendingSort = Literal["created_at", "total_amount", "start_date", "employee_name"]
 SortOrder = Literal["asc", "desc"]
@@ -164,6 +165,13 @@ def update_manager_request_status(
         comments = "Approved by manager and forwarded to Finance."
 
     expense.status = new_status
+    queue_status_change_notification(
+        session=session,
+        expense=expense,
+        new_status=new_status,
+        actor_role="Manager",
+        rejection_reason=expense.rejection_reason,
+    )
 
     session.add(
         RequestHistory(

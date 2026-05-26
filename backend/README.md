@@ -95,7 +95,9 @@ Success response behavior:
 
 - `status` becomes `Pending Finance`.
 - `current_processor_id` is set to `null` so Finance can process next.
+- A notification row is created in `notifications` for the employee.
 - On rejection, `status` becomes `Rejected`, `rejection_reason` is saved, and the request is returned to the employee queue (`current_processor_id = employee_id`).
+- Rejection notification includes the rejection reason.
 
 Error responses for manager status update:
 
@@ -115,6 +117,7 @@ Error responses for manager status update:
   - Finance status update endpoint.
   - Allowed target statuses: `Finance Approved`, `Paid`, `Rejected`.
   - `rejection_reason` is required when status is `Rejected`.
+  - Employee notification is created when status is `Finance Approved` or `Rejected` (with reason included for rejection).
 
 ## Status and Locking Rules
 

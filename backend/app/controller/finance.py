@@ -9,7 +9,10 @@ from app.middleware import require_finance_role
 from app.model.expense import ExpenseCategory, ExpenseLineItem, ExpenseRequest, RequestStatus
 from app.model.user import User
 from app.schema.finance import FinanceExpenseRequestRead, FinancePendingListResponse, FinanceStatusUpdateRequest
-from app.service.finance_service import get_finance_pending_requests, update_finance_request_status
+from app.service.finance_service import (
+    get_finance_pending_requests,
+    update_finance_request_status as update_finance_request_status_service,
+)
 
 router = APIRouter()
 
@@ -99,8 +102,6 @@ def update_finance_request_status(
     PATCH /api/finance/requests/{expense_id}/status
     Finance Officer approves/pays/rejects a manager-approved expense request.
     """
-    from app.service.finance_service import update_finance_request_status
-
     # Fetch request
     statement = select(ExpenseRequest).where(ExpenseRequest.id == expense_id)
     expense = session.exec(statement).first()
@@ -118,7 +119,7 @@ def update_finance_request_status(
         )
 
     # Update with business rule validation
-    updated = update_finance_request_status(
+    updated = update_finance_request_status_service(
         session,
         expense,
         payload.status,
