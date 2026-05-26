@@ -20,6 +20,7 @@ from app.service.manager_dashboard_service import (
 )
 from app.service.notification_service import queue_status_change_notification
 from app.service.expense_service import to_expense_read
+from app.service.notification_service import create_request_rejected_notification
 
 router = APIRouter()
 
@@ -135,17 +136,14 @@ def update_manager_expense_request_status(
     action_taken = "Rejected"
     if payload.status == RequestStatus.PENDING_FINANCE:
         expense.current_processor_id = _get_finance_processor_id(session)
-        action_taken = "Approved"
-    else:
+    if payload.status == RequestStatus.REJECTED:
         expense.current_processor_id = expense.employee_id
-
-    queue_status_change_notification(
-        session=session,
-        expense=expense,
-        new_status=payload.status,
-        actor_role="Manager",
-        rejection_reason=rejection_reason,
-    )
+        create_request_rejected_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+            rejection_reason=rejection_reason,
+        )
 
     session.add(
         RequestHistory(

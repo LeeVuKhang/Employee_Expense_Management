@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
+import NotificationBell from "../notifications/NotificationBell";
 import { useAuth } from "../../contexts/AuthContext";
 
 const ROLE_NAV_ITEMS = {
@@ -61,6 +62,8 @@ export default function Navbar({
       </div>
 
       <div className="navbar-user">
+        {currentRole === "Employee" && <NotificationBell />}
+
         <div className="navbar-role" aria-label="Current role">
           <span className="navbar-role-name">{user?.full_name ?? currentRole}</span>
           <span className="navbar-role-label">{currentRole}</span>
