@@ -6,6 +6,7 @@ from app.model.expense import (
     RequestHistory,
     RequestStatus,
 )
+from app.model.notification import Notification
 from app.model.user import User, UserRole
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "ExpenseRequest",
     "RequestHistory",
     "RequestStatus",
+    "Notification",
     "User",
     "UserRole",
 ]
