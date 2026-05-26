@@ -115,7 +115,7 @@ class ManagerDashboardAuthorizationTest(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(
             response.json()["detail"],
-            "Only requests with status 'Pending Manager' can be approved.",
+            "Only requests with status 'Pending Manager' can be processed by manager.",
         )
 
     def test_manager_cannot_approve_request_outside_direct_team(self) -> None:
@@ -129,6 +129,54 @@ class ManagerDashboardAuthorizationTest(unittest.TestCase):
         self.assertEqual(
             response.json()["detail"],
             "Access denied: this request is not assigned to your team.",
+        )
+
+    def test_manager_can_reject_pending_request_and_store_reason(self) -> None:
+        response = self.client.patch(
+            "/api/manager/requests/101/status",
+            headers={"X-User-Id": "3"},
+            json={"status": "Rejected", "rejection_reason": "Missing VAT invoice"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "Rejected")
+        self.assertEqual(response.json()["rejection_reason"], "Missing VAT invoice")
+        self.assertEqual(response.json()["current_processor_id"], 4)
+
+        with Session(self.engine) as session:
+            expense = session.get(ExpenseRequest, 101)
+            self.assertIsNotNone(expense)
+            self.assertEqual(expense.status, RequestStatus.REJECTED)
+            self.assertEqual(expense.rejection_reason, "Missing VAT invoice")
+            self.assertEqual(expense.current_processor_id, 4)
+
+            history_records = session.exec(
+                select(RequestHistory).where(RequestHistory.expense_request_id == 101)
+            ).all()
+            self.assertEqual(len(history_records), 1)
+            self.assertEqual(history_records[0].action_taken, "Rejected")
+            self.assertEqual(history_records[0].comments, "Missing VAT invoice")
+
+    def test_manager_reject_requires_rejection_reason(self) -> None:
+        response = self.client.patch(
+            "/api/manager/requests/101/status",
+            headers={"X-User-Id": "3"},
+            json={"status": "Rejected"},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_manager_reject_with_blank_reason_is_not_allowed(self) -> None:
+        response = self.client.patch(
+            "/api/manager/requests/101/status",
+            headers={"X-User-Id": "3"},
+            json={"status": "Rejected", "rejection_reason": "   "},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["detail"],
+            "rejection_reason is required when rejecting a request.",
         )
 
     def _seed_data(self) -> None:

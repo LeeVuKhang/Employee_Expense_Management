@@ -1,11 +1,10 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.core.database import get_session
 from app.middleware import get_current_user_id
-from app.model.expense import RequestStatus
 from app.schema.expense import ExpenseRequestRead
 from app.schema.manager import (
     ManagerPendingRequestsRead,
@@ -14,10 +13,10 @@ from app.schema.manager import (
 )
 from app.service.expense_service import to_expense_read
 from app.service.manager_dashboard_service import (
-    approve_request_for_finance,
     get_pending_requests_summary_for_manager,
     list_pending_requests_for_manager,
     require_manager,
+    update_manager_request_status as update_manager_request_status_service,
 )
 
 router = APIRouter()
@@ -73,15 +72,11 @@ def update_manager_request_status(
 ) -> dict:
     manager = require_manager(session, current_user_id)
 
-    if payload.status != RequestStatus.PENDING_FINANCE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Manager can only approve requests to 'Pending Finance'.",
-        )
-
-    expense = approve_request_for_finance(
+    expense = update_manager_request_status_service(
         session=session,
         expense_id=expense_id,
         manager_id=manager.id,
+        new_status=payload.status,
+        rejection_reason=payload.rejection_reason,
     )
     return to_expense_read(expense, session)

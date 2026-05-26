@@ -102,10 +102,12 @@ def get_pending_requests_summary_for_manager(session: Session, manager_id: int) 
     }
 
 
-def approve_request_for_finance(
+def update_manager_request_status(
     session: Session,
     expense_id: int,
     manager_id: int,
+    new_status: RequestStatus,
+    rejection_reason: str | None = None,
 ) -> ExpenseRequest:
     statement = (
         select(ExpenseRequest, User.manager_id)
@@ -132,28 +134,62 @@ def approve_request_for_finance(
             detail="Access denied: this request is assigned to another processor.",
         )
 
+    if new_status not in {RequestStatus.PENDING_FINANCE, RequestStatus.REJECTED}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manager can only set status to 'Pending Finance' or 'Rejected'.",
+        )
+
     if expense.status != RequestStatus.PENDING_MANAGER:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Only requests with status 'Pending Manager' can be approved.",
+            detail="Only requests with status 'Pending Manager' can be processed by manager.",
         )
 
-    expense.status = RequestStatus.PENDING_FINANCE
-    expense.current_processor_id = None
-    expense.rejection_reason = None
+    comments: str | None = None
+    action_taken = "Approved"
+    if new_status == RequestStatus.REJECTED:
+        if not rejection_reason or not rejection_reason.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="rejection_reason is required when rejecting a request.",
+            )
+        expense.rejection_reason = rejection_reason.strip()
+        expense.current_processor_id = expense.employee_id
+        action_taken = "Rejected"
+        comments = expense.rejection_reason
+    else:
+        expense.rejection_reason = None
+        expense.current_processor_id = None
+        comments = "Approved by manager and forwarded to Finance."
+
+    expense.status = new_status
 
     session.add(
         RequestHistory(
             expense_request_id=expense.id,
             actor_id=manager_id,
-            action_taken="Approved",
-            comments="Approved by manager and forwarded to Finance.",
+            action_taken=action_taken,
+            comments=comments,
         )
     )
     session.add(expense)
     session.commit()
     session.refresh(expense)
     return expense
+
+
+def approve_request_for_finance(
+    session: Session,
+    expense_id: int,
+    manager_id: int,
+) -> ExpenseRequest:
+    return update_manager_request_status(
+        session=session,
+        expense_id=expense_id,
+        manager_id=manager_id,
+        new_status=RequestStatus.PENDING_FINANCE,
+    )
 
 
 def _pending_manager_filters(manager_id: int):

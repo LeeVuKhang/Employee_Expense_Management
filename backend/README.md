@@ -69,8 +69,10 @@ X-User-Id: 3
 - `GET /api/manager/expense-requests/pending/summary`
   - Return summary of manager's pending requests.
 - `PATCH /api/manager/requests/{expense_id}/status`
-  - Manager approval action (BE-1).
-  - Supported transition: `Pending Manager` -> `Pending Finance`.
+  - Manager review action (BE-1, BE-2).
+  - Supported transitions from `Pending Manager`:
+    - `Pending Finance` (approve)
+    - `Rejected` (reject with reason)
 
 Request body:
 
@@ -80,17 +82,28 @@ Request body:
 }
 ```
 
+Or reject:
+
+```json
+{
+  "status": "Rejected",
+  "rejection_reason": "Missing VAT invoice"
+}
+```
+
 Success response behavior:
 
 - `status` becomes `Pending Finance`.
 - `current_processor_id` is set to `null` so Finance can process next.
+- On rejection, `status` becomes `Rejected`, `rejection_reason` is saved, and the request is returned to the employee queue (`current_processor_id = employee_id`).
 
 Error responses for manager status update:
 
-- `400` if target status is not `Pending Finance`.
+- `400` if status is unsupported or rejection reason is blank.
 - `403` if user is not a manager, request is outside manager's team, or assigned to another processor.
 - `404` if expense request does not exist.
 - `409` if current status is not `Pending Manager`.
+- `422` if rejecting without `rejection_reason` in request body.
 
 ### Finance APIs
 
