@@ -1,5 +1,6 @@
 import { expenseApiRoutes, managerApiRoutes } from '../routes'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 const CURRENT_USER_ID = import.meta.env.VITE_CURRENT_USER_ID ?? '4'
 const MANAGER_DASHBOARD_USER_ID = import.meta.env.VITE_MANAGER_USER_ID ?? '3'
 const PENDING_MANAGER_STATUS = 'Pending Manager'
@@ -7,7 +8,8 @@ const PENDING_MANAGER_STATUS = 'Pending Manager'
 async function requestExpense(path, options = {}) {
   const { headers, userId = CURRENT_USER_ID, ...requestOptions } = options
   const isFormData = requestOptions.body instanceof FormData
-  const response = await fetch(path, {
+  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`
+  const response = await fetch(url, {
     ...requestOptions,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
@@ -90,6 +92,19 @@ export async function updateManagerExpenseRequestStatus(
   return toExpenseViewModel(expense)
 }
 
+export async function approveManagerExpenseRequest(expenseId) {
+  return updateManagerExpenseRequestStatus(expenseId, {
+    status: 'Pending Finance',
+  })
+}
+
+export async function rejectManagerExpenseRequest(expenseId, rejectionReason) {
+  return updateManagerExpenseRequestStatus(expenseId, {
+    status: 'Rejected',
+    rejectionReason,
+  })
+}
+
 export async function fetchExpenseRequest(expenseId, userId = CURRENT_USER_ID) {
   const expense = await requestExpense(expenseApiRoutes.detail(expenseId), { userId })
   return toExpenseViewModel(expense)
@@ -157,6 +172,7 @@ function toExpenseViewModel(expense) {
     tripDateTo: expense.end_date,
     amount: totalAmount,
     description: summarizeLineItems(lineItems, expense.rejection_reason),
+    rejectionReason: expense.rejection_reason ?? '',
     status: expense.status,
     processor,
     isLocked: Boolean(expense.is_locked),
