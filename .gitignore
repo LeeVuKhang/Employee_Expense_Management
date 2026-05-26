@@ -8,3 +8,4 @@ __pycache__/
 EEM.sql
 context.md
 frontend/bun.lock
+/backend/tests

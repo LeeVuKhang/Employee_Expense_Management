@@ -18,7 +18,9 @@ from app.service.manager_dashboard_service import (
     list_pending_requests_for_manager,
     require_manager,
 )
+from app.service.notification_service import queue_status_change_notification
 from app.service.expense_service import to_expense_read
+from app.service.notification_service import create_request_rejected_notification
 
 router = APIRouter()
 
@@ -96,7 +98,7 @@ def get_manager_expense_request(
 ) -> dict:
     manager = require_manager(session, current_manager.id)
     expense = _get_manager_request(session, manager.id, expense_id)
-    return to_expense_read(expense, session)
+    return to_expense_read(expense, session, include_attachments=True)
 
 
 @router.patch("/requests/{expense_id}/status", response_model=ExpenseRequestRead)
@@ -131,18 +133,27 @@ def update_manager_expense_request_status(
     expense.status = payload.status
     expense.is_locked = True
     expense.rejection_reason = rejection_reason
+    action_taken = "Rejected"
     if payload.status == RequestStatus.PENDING_FINANCE:
         expense.current_processor_id = _get_finance_processor_id(session)
+    if payload.status == RequestStatus.REJECTED:
+        expense.current_processor_id = expense.employee_id
+        create_request_rejected_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+            rejection_reason=rejection_reason,
+        )
 
     session.add(
         RequestHistory(
             expense_request_id=expense.id,
             actor_id=manager.id,
-            action_taken=payload.status.value,
+            action_taken=action_taken,
             comments=rejection_reason,
         )
     )
     session.add(expense)
     session.commit()
     session.refresh(expense)
-    return to_expense_read(expense, session)
+    return to_expense_read(expense, session, include_attachments=True)

@@ -99,6 +99,19 @@ export async function updateManagerExpenseRequestStatus(
   return toExpenseViewModel(expense);
 }
 
+export async function approveManagerExpenseRequest(expenseId) {
+  return updateManagerExpenseRequestStatus(expenseId, {
+    status: 'Pending Finance',
+  })
+}
+
+export async function rejectManagerExpenseRequest(expenseId, rejectionReason) {
+  return updateManagerExpenseRequestStatus(expenseId, {
+    status: 'Rejected',
+    rejectionReason,
+  })
+}
+
 export async function fetchManagerExpenseRequest(expenseId) {
   const expense = await requestExpense(
     managerApiRoutes.requestDetail(expenseId),
@@ -111,31 +124,30 @@ export async function fetchExpenseRequest(expenseId) {
   return toExpenseViewModel(expense);
 }
 
+export async function fetchExpenseAttachmentDownloadUrl(expenseId, attachmentId) {
+  const response = await requestExpense(expenseApiRoutes.attachmentDownload(expenseId, attachmentId))
+  return response.url
+}
+
 export async function createExpenseRequest(payload) {
-  const isFormData = payload instanceof FormData;
-  const expense = await requestExpense(
-    expenseApiRoutes.list,
-    isFormData
-      ? {
-          method: "POST",
-          body: payload,
-        }
-      : {
-          method: "POST",
-          body: JSON.stringify(
-            toExpenseApiPayload(payload, { includeStatus: true }),
-          ),
-        },
-  );
+  const apiPayload = payload instanceof FormData
+    ? payload
+    : toExpenseApiPayload(payload, { includeStatus: true });
+
+  const expense = await requestExpense(expenseApiRoutes.list, {
+    method: 'POST',
+    body: apiPayload instanceof FormData ? apiPayload : JSON.stringify(apiPayload),
+  });
   return toExpenseViewModel(expense);
 }
 
 export async function updateExpenseRequest(expenseId, payload) {
+  const apiPayload = toExpenseApiPayload(payload)
   const expense = await requestExpense(expenseApiRoutes.detail(expenseId), {
-    method: "PUT",
-    body: JSON.stringify(toExpenseApiPayload(payload)),
-  });
-  return toExpenseViewModel(expense);
+    method: 'PUT',
+    body: apiPayload instanceof FormData ? apiPayload : JSON.stringify(apiPayload),
+  })
+  return toExpenseViewModel(expense)
 }
 
 export async function cancelExpenseRequest(expenseId) {
@@ -184,13 +196,19 @@ function toExpenseViewModel(expense) {
     tripDateTo: expense.end_date,
     amount: totalAmount,
     description: summarizeLineItems(lineItems, expense.rejection_reason),
+    rejectionReason: expense.rejection_reason ?? '',
     status: expense.status,
     processor,
     isLocked: Boolean(expense.is_locked),
-    attachments: (expense.attachments ?? []).map((att) => ({
-      id: String(att.id),
-      name: att.file_name ?? att.fileName ?? att.name,
-      url: att.file_url ?? att.fileUrl ?? att.url,
+    warnings: expense.warnings ?? [],
+    attachments: (expense.attachments ?? []).map((attachment) => ({
+      id: String(attachment.id),
+      name: attachment.file_name ?? attachment.fileName ?? attachment.name,
+      fileName: attachment.file_name ?? attachment.fileName ?? attachment.name,
+      url: attachment.file_url ?? attachment.fileUrl ?? attachment.url,
+      contentType: attachment.content_type ?? attachment.contentType,
+      fileSizeBytes: Number(attachment.file_size_bytes ?? 0),
+      uploadedAt: attachment.uploaded_at ?? attachment.uploadedAt,
     })),
     lineItems,
     timeline: [
@@ -271,21 +289,34 @@ function toManagerPendingRequestViewModel(request) {
 }
 
 function toExpenseApiPayload(expense, options = {}) {
-  const payload = {
-    category_id: Number(expense.categoryId),
-    start_date: expense.tripStart,
-    end_date: expense.tripEnd,
-    line_items: expense.lineItems.map((lineItem) => ({
-      expense_date: lineItem.date,
-      item_service_name: lineItem.itemName,
-      purpose_note: lineItem.purpose,
-      amount: lineItem.amount,
+  // Lấy ngày hiện tại dạng YYYY-MM-DD làm phương án dự phòng (Fallback)
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // 1. Tạo cấu trúc Object khớp chính xác với hệ thống
+  const rawPayload = {
+    category_id: Number(expense.categoryId || expense.category_id || 1),
+    start_date: expense.tripStart || expense.tripDateFrom || expense.submittedDate || todayStr,
+    end_date: expense.tripEnd || expense.tripDateTo || expense.submittedDate || todayStr,
+    line_items: (expense.lineItems || expense.line_items || []).map((lineItem) => ({
+      expense_date: lineItem.date || lineItem.expense_date || todayStr,
+      item_service_name: lineItem.itemName || lineItem.item_service_name || "Expenses Item",
+      purpose_note: lineItem.purpose || lineItem.purpose_note || "No note provided",
+      amount: Number(lineItem.amount || 0),
     })),
   };
 
   if (options.includeStatus) {
-    payload.status = expense.status;
+    rawPayload.status = expense.status || 'Draft';
   }
 
-  return payload;
+  const filesToUpload = expense.file ? [expense.file] : (expense.attachments ?? []);
+
+  if (filesToUpload.length > 0) {
+    const formData = new FormData();
+    filesToUpload.forEach((file) => formData.append('attachments', file));
+    formData.append('data', JSON.stringify(rawPayload));
+    return formData;
+  }
+
+  return rawPayload;
 }

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import AnyUrl, Field, field_validator
+from pydantic import AliasChoices, AnyUrl, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,10 +21,18 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     aws_region: str = "ap-southeast-1"
-    s3_bucket: str | None = Field(default=None, alias="AWS_S3_BUCKET")
+    s3_bucket: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_S3_BUCKET", "AWS_BUCKET_NAME"),
+    )
 
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    client_api: str
 
+    @property
+    def cors_origins(self) -> list[str]:
+        return [self.client_api]
+
+    
     @field_validator("debug", mode="before")
     @classmethod
     def parse_debug(cls, value: object) -> bool:

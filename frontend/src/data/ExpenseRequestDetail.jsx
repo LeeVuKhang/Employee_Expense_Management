@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   cancelExpenseRequest,
   duplicateExpenseRequest,
+  fetchExpenseAttachmentDownloadUrl,
   fetchExpenseRequest,
 } from "../api/expenses";
 import CancelRequestModal from "../components/requests/CancelRequestModal";
@@ -32,19 +33,6 @@ function formatDate(value) {
   if (!year || !month || !day) return value;
 
   return `${Number(day)}/${Number(month)}/${year}`;
-}
-
-function convertS3ToHttp(url) {
-  if (!url) return url;
-  if (!url.startsWith("s3://")) return url;
-
-  // s3://bucket/key/path -> https://bucket.s3.amazonaws.com/key/path
-  const withoutPrefix = url.slice(5);
-  const parts = withoutPrefix.split("/");
-  const bucket = parts.shift();
-  const key = parts.join("/");
-  if (!bucket || !key) return url;
-  return `https://${bucket}.s3.amazonaws.com/${key}`;
 }
 
 function FieldValue({ label, value }) {
@@ -100,6 +88,7 @@ export default function ExpenseRequestDetail({
   const [loading, setLoading] = useState(!initialRequest);
   const [error, setError] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [openingAttachmentId, setOpeningAttachmentId] = useState(null);
 
   useEffect(() => {
     let ignore = false;
@@ -188,6 +177,28 @@ export default function ExpenseRequestDetail({
     }
   }
 
+  async function openAttachment(attachment) {
+    const previewWindow = window.open("", "_blank");
+    if (previewWindow) previewWindow.opener = null;
+
+    setOpeningAttachmentId(attachment.id);
+    setNotice(null);
+
+    try {
+      const url = await fetchExpenseAttachmentDownloadUrl(request.id, attachment.id);
+      if (previewWindow) {
+        previewWindow.location.href = url;
+      } else {
+        window.location.assign(url);
+      }
+    } catch (err) {
+      previewWindow?.close();
+      showNotice("error", err.message);
+    } finally {
+      setOpeningAttachmentId(null);
+    }
+  }
+
   return (
     <div className="app-shell">
       <main className="page-frame request-detail-frame">
@@ -265,15 +276,15 @@ export default function ExpenseRequestDetail({
                   <div className="attachment-box">
                     {request.attachments.length ? (
                       request.attachments.map((attachment) => (
-                        <a
-                          className="attachment-chip"
-                          key={attachment.id ?? attachment.name}
-                          href={convertS3ToHttp(attachment.url)}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          className="attachment-chip attachment-button"
+                          disabled={openingAttachmentId === attachment.id}
+                          key={attachment.id ?? attachment.fileName}
+                          onClick={() => openAttachment(attachment)}
+                          type="button"
                         >
-                          {attachment.name}
-                        </a>
+                          {attachment.fileName ?? attachment.name}
+                        </button>
                       ))
                     ) : (
                       <em>No attachments provided.</em>

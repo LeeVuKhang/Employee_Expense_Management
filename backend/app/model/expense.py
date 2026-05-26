@@ -94,6 +94,29 @@ class Attachment(SQLModel, table=True):
     uploaded_at: datetime | None = None
 
 
+class Notification(SQLModel, table=True):
+    __tablename__ = "notifications"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(
+        sa_column=Column(
+            ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    expense_request_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey("expense_requests.id", ondelete="CASCADE"),
+            index=True,
+        ),
+    )
+    message: str = Field(sa_column=Column(Text, nullable=False))
+    is_read: bool = Field(default=False, sa_column=Column(Boolean, nullable=False))
+    created_at: datetime | None = None
+
+
 class RequestHistory(SQLModel, table=True):
     __tablename__ = "request_history"
 

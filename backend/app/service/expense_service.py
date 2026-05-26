@@ -4,10 +4,10 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from app.model.expense import (
+    Attachment,
     ExpenseCategory,
     ExpenseLineItem,
     ExpenseRequest,
-    Attachment,
     RequestHistory,
     RequestStatus,
 )
@@ -40,6 +40,11 @@ def _line_items_total(line_items: list[ExpenseLineItemCreate]) -> Decimal:
 
 def _get_line_items(session: Session, expense_id: int) -> list[ExpenseLineItem]:
     statement = select(ExpenseLineItem).where(ExpenseLineItem.expense_request_id == expense_id)
+    return list(session.exec(statement).all())
+
+
+def _get_attachments(session: Session, expense_id: int) -> list[Attachment]:
+    statement = select(Attachment).where(Attachment.expense_request_id == expense_id)
     return list(session.exec(statement).all())
 
 
@@ -198,25 +203,13 @@ def duplicate_expense_request(
     return new_expense
 
 
-def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
-    # build attachments with presigned URLs when possible
-    attachments = []
-    for attachment in session.exec(
-        select(Attachment).where(Attachment.expense_request_id == expense.id)
-    ).all():
-        att = attachment.model_dump()
-        bucket = att.get("s3_bucket")
-        key = att.get("s3_key")
-        if bucket and key:
-            presigned = get_presigned_url(bucket, key)
-            if presigned:
-                att["file_url"] = presigned
-            else:
-                # fallback to https public pattern if presigned couldn't be generated
-                att["file_url"] = f"https://{bucket}.s3.amazonaws.com/{key}"
-        attachments.append(att)
-
-    return {
+def to_expense_read(
+    expense: ExpenseRequest,
+    session: Session,
+    *,
+    include_attachments: bool = False,
+) -> dict:
+    response = {
         **expense.model_dump(),
         "employee_name": _get_user_name(session, expense.employee_id),
         "category_name": _get_category_name(session, expense.category_id),
@@ -225,5 +218,19 @@ def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
             line_item.model_dump()
             for line_item in _get_line_items(session, expense.id)
         ],
-        "attachments": attachments,
     }
+    if include_attachments:
+        response["attachments"] = [
+            _attachment_read_model(attachment)
+            for attachment in _get_attachments(session, expense.id)
+        ]
+    return response
+
+
+def _attachment_read_model(attachment: Attachment) -> dict:
+    attachment_data = attachment.model_dump()
+    if attachment.s3_bucket and attachment.s3_key:
+        presigned_url = get_presigned_url(attachment.s3_bucket, attachment.s3_key)
+        if presigned_url:
+            attachment_data["file_url"] = presigned_url
+    return attachment_data

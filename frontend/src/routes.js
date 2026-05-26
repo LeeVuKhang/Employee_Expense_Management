@@ -16,6 +16,8 @@ export const expenseApiRoutes = {
   detail: (expenseId) => `/api/expenses/${expenseId}`,
   cancel: (expenseId) => `/api/expenses/${expenseId}/cancel`,
   duplicate: (expenseId) => `/api/expenses/${expenseId}/duplicate`,
+  attachmentDownload: (expenseId, attachmentId) =>
+    `/api/expenses/${expenseId}/attachments/${attachmentId}/download-url`,
 }
 
 export const managerApiRoutes = {
@@ -23,4 +25,10 @@ export const managerApiRoutes = {
   pendingRequestsSummary: '/api/manager/expense-requests/pending/summary',
   requestDetail: (expenseId) => `/api/manager/requests/${expenseId}`,
   requestStatus: (expenseId) => `/api/manager/requests/${expenseId}/status`,
+}
+
+export const notificationApiRoutes = {
+  list: '/api/notifications',
+  markRead: (notificationId) => `/api/notifications/${notificationId}/read`,
+  markAllRead: '/api/notifications/read-all',
 }

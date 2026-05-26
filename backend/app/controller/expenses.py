@@ -1,16 +1,25 @@
 import json
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from app.core.database import get_session
 from app.middleware import get_current_user_id, require_expense_owner, require_role
-from app.model.expense import ExpenseCategory, ExpenseRequest, RequestStatus
+from app.model.expense import Attachment, ExpenseCategory, ExpenseRequest, RequestStatus
 from app.model.user import UserRole
-from app.schema.expense import ExpenseRequestCreate, ExpenseRequestRead, ExpenseRequestUpdate
-from app.service.attachment_service import parse_attachments, store_attachments
+from app.schema.expense import (
+    AttachmentDownloadRead,
+    ExpenseRequestCreate,
+    ExpenseRequestRead,
+    ExpenseRequestUpdate,
+)
+from app.service.attachment_service import (
+    get_attachment_download_url,
+    parse_attachments,
+    store_attachments,
+)
 from app.service.expense_service import (
     cancel_expense_request,
     create_expense_request,
@@ -84,43 +93,81 @@ async def _payload_from_request(
     current_user_id: int,
 ) -> tuple[int, ExpenseRequestCreate, list[UploadFile]]:
     content_type = request.headers.get("content-type", "")
+    uploads: list[UploadFile] = []
 
     if content_type.startswith("multipart/form-data"):
         form = await request.form()
-        raw_line_items = form.get("lineItems") or form.get("line_items")
-        try:
-            line_items = json.loads(str(raw_line_items))
-        except (TypeError, json.JSONDecodeError):
-            raise _bad_request("Invalid form data format") from None
+        
+        # 1. Trích xuất các tệp đính kèm từ form gửi lên
+        for key in ["file", "attachments", "proofs"]:
+            for value in form.getlist(key):
+                if hasattr(value, "filename") and hasattr(value, "read"):
+                    uploads.append(value)
 
-        payload_data = {
-            "category_id": _resolve_category_id(
-                session,
-                form.get("categoryId") or form.get("category_id"),
-                form.get("category"),
-            ),
-            "start_date": form.get("startDate") or form.get("start_date"),
-            "end_date": form.get("endDate") or form.get("end_date"),
-            "status": RequestStatus.DRAFT if _parse_bool(form.get("isDraft")) else RequestStatus.PENDING_MANAGER,
-            "line_items": [_legacy_line_item(item) for item in line_items],
-        }
-        employee_id = current_user_id
-        uploads = [
-            value
-            for value in [*form.getlist("attachments"), *form.getlist("proofs")]
-            if hasattr(value, "filename") and hasattr(value, "read")
-        ]
+        # 2. Xử lý bóc tách khối dữ liệu text
+        if "data" in form:
+            try:
+                payload_data = json.loads(str(form.get("data")))
+            except (TypeError, json.JSONDecodeError):
+                raise _bad_request("Trường 'data' trong FormData không đúng định dạng JSON.")
+            
+            # Đồng bộ an toàn giữa camelCase và snake_case không dùng hàm .pop() nguy hiểm
+            if "categoryId" in payload_data and "category_id" not in payload_data:
+                payload_data["category_id"] = payload_data["categoryId"]
+            if "startDate" in payload_data and "start_date" not in payload_data:
+                payload_data["start_date"] = payload_data["startDate"]
+            if "endDate" in payload_data and "end_date" not in payload_data:
+                payload_data["end_date"] = payload_data["endDate"]
+            if "lineItems" in payload_data and "line_items" not in payload_data:
+                payload_data["line_items"] = payload_data["lineItems"]
+
+            employee_id = _parse_employee_id(
+                payload_data.get("employee_id")
+                or payload_data.get("employeeId")
+                or form.get("employeeId")
+                or current_user_id
+            )
+        else:
+            # Fallback nếu React bóc tách phẳng rời rạc từng trường text
+            raw_line_items = form.get("lineItems") or form.get("line_items") or "[]"
+            try:
+                line_items = json.loads(str(raw_line_items))
+            except (TypeError, json.JSONDecodeError):
+                raise _bad_request("Danh sách lineItems không đúng định dạng JSON string.")
+
+            payload_data = {
+                "category_id": _resolve_category_id(
+                    session,
+                    form.get("categoryId") or form.get("category_id"),
+                    form.get("category"),
+                ),
+                "start_date": form.get("startDate") or form.get("start_date"),
+                "end_date": form.get("endDate") or form.get("end_date"),
+                "status": RequestStatus.DRAFT if _parse_bool(form.get("isDraft")) else RequestStatus.PENDING_MANAGER,
+                "line_items": line_items,
+            }
+            employee_id = _parse_employee_id(
+                form.get("employeeId") or form.get("employee_id") or current_user_id
+            )
+
+        # Làm sạch mảng line_items con
+        if "line_items" in payload_data and isinstance(payload_data["line_items"], list):
+            payload_data["line_items"] = [_legacy_line_item(item) for item in payload_data["line_items"]]
+                    
     else:
+        # Xử lý dữ liệu JSON Raw truyền thống khi không có file ảnh
         body = await request.json()
-        employee_id = current_user_id
+        employee_id = _parse_employee_id(
+            body.get("employeeId") or body.get("employee_id") or current_user_id
+        )
+        
+        raw_items = body.get("lineItems") or body.get("line_items") or []
         payload_data = {
             **body,
-            "line_items": [_legacy_line_item(item) for item in body.get("lineItems", [])]
-            if "lineItems" in body
-            else body.get("line_items", []),
+            "line_items": [_legacy_line_item(item) for item in raw_items]
         }
-        uploads = []
 
+    # Thực hiện validate qua Pydantic Model để áp ràng buộc dữ liệu
     try:
         payload = ExpenseRequestCreate.model_validate(payload_data)
     except ValidationError as exc:
@@ -139,7 +186,7 @@ def list_my_expense_requests(
 ) -> list[dict]:
     statement = select(ExpenseRequest).where(ExpenseRequest.employee_id == current_user_id)
     expenses = session.exec(statement).all()
-    return [to_expense_read(expense, session) for expense in expenses]
+    return [to_expense_read(expense, session, include_attachments=True) for expense in expenses]
 
 
 @router.post("", response_model=ExpenseRequestRead, status_code=status.HTTP_201_CREATED)
@@ -156,7 +203,10 @@ async def create_my_expense_request(
     attachments = await parse_attachments(uploads)
     expense = create_expense_request(session, current_user_id, payload)
     warnings = store_attachments(session, expense.id, attachments) if expense.id is not None else []
-    response = to_expense_read(expense, session)
+    if attachments:
+        session.refresh(expense)
+
+    response = to_expense_read(expense, session, include_attachments=True)
     if warnings:
         response["warnings"] = warnings
     return response
@@ -167,18 +217,73 @@ def get_my_expense_request(
     expense: Annotated[ExpenseRequest, Depends(require_expense_owner)],
     session: Annotated[Session, Depends(get_session)],
 ) -> dict:
-    return to_expense_read(expense, session)
+    return to_expense_read(expense, session, include_attachments=True)
+
+
+@router.get(
+    "/{expense_id}/attachments/{attachment_id}/download-url",
+    response_model=AttachmentDownloadRead,
+)
+def get_my_attachment_download_url(
+    attachment_id: int,
+    expense: Annotated[ExpenseRequest, Depends(require_expense_owner)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, str]:
+    attachment = session.exec(
+        select(Attachment).where(
+            Attachment.id == attachment_id,
+            Attachment.expense_request_id == expense.id,
+        )
+    ).first()
+    if attachment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attachment not found.",
+        )
+
+    return {"url": get_attachment_download_url(attachment)}
 
 
 @router.put("/{expense_id}", response_model=ExpenseRequestRead)
-def update_my_expense_request(
-    payload: ExpenseRequestUpdate,
+async def update_my_expense_request(
+    request: Request, # Thay đổi từ payload sang nhận trực tiếp request thực thể
     expense: Annotated[ExpenseRequest, Depends(require_expense_owner)],
     session: Annotated[Session, Depends(get_session)],
     current_user_id: Annotated[int, Depends(get_current_user_id)],
 ) -> dict:
+    status_value = expense.status.value if isinstance(expense.status, RequestStatus) else expense.status
+    if expense.is_locked or status_value not in {
+        RequestStatus.DRAFT.value,
+        RequestStatus.PENDING_MANAGER.value,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Draft or Pending Manager requests can be changed.",
+        )
+
+    # 1. Tận dụng hàm helper chung để bóc tách text và file (nếu người dùng cập nhật lại ảnh mới)
+    _, payload_create, uploads = await _payload_from_request(request, session, current_user_id)
+    
+    # 2. Ép kiểu dữ liệu sang cấu trúc Schema Update
+    payload = ExpenseRequestUpdate(
+        category_id=payload_create.category_id,
+        start_date=payload_create.start_date,
+        end_date=payload_create.end_date,
+        line_items=payload_create.line_items
+    )
+    
+    # 3. Tiến hành cập nhật Database chi tiêu
     updated = update_expense_request(session, expense, payload, current_user_id)
-    return to_expense_read(updated, session)
+    
+    # 4. Xử lý tệp đính kèm mới nếu có upload bổ sung khi chỉnh sửa
+    warnings: list[str] = []
+    if uploads:
+        attachments = await parse_attachments(uploads)
+        warnings = store_attachments(session, updated.id, attachments)
+
+    response = to_expense_read(updated, session, include_attachments=True)
+    response["warnings"] = warnings
+    return response
 
 
 @router.patch("/{expense_id}/cancel", response_model=ExpenseRequestRead)
@@ -188,7 +293,7 @@ def cancel_my_expense_request(
     current_user_id: Annotated[int, Depends(get_current_user_id)],
 ) -> dict:
     cancelled = cancel_expense_request(session, expense, current_user_id)
-    return to_expense_read(cancelled, session)
+    return to_expense_read(cancelled, session, include_attachments=True)
 
 
 @router.post(
@@ -202,4 +307,21 @@ def duplicate_my_expense_request(
     current_user_id: Annotated[int, Depends(get_current_user_id)],
 ) -> dict:
     duplicated = duplicate_expense_request(session, source, current_user_id)
-    return to_expense_read(duplicated, session)
+    return to_expense_read(duplicated, session, include_attachments=True)
+@router.post("/scan")
+async def scan_expense_receipt(file: UploadFile = File(...)) -> dict:
+    """
+    POST /api/expenses/scan
+    Accepts a single file upload and returns OCR-guessed fields:
+    { date, total_amount, vendor_name, category_id }
+    """
+    try:
+        from app.service.ocr_service import scan_receipt_for_data
+
+        contents = await file.read()
+        result = scan_receipt_for_data(contents)
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))

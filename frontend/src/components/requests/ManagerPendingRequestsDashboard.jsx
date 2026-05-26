@@ -1,18 +1,30 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   fetchManagerPendingRequests,
   fetchManagerPendingRequestsSummary,
 } from '../../api/expenses'
 import SearchBar from '../ui/SearchBar'
+import ToastStack from '../ui/ToastStack'
 
 export default function ManagerPendingRequestsDashboard() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const initialNotice = location.state?.notice
   const [requests, setRequests] = useState([])
   const [summary, setSummary] = useState({ pendingCount: 0, totalAmount: 0, currency: 'USD' })
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState(null)
+  const [toasts, setToasts] = useState(() =>
+    initialNotice?.message
+      ? [{ id: Date.now() + Math.random(), message: initialNotice.message, type: initialNotice.type ?? 'info' }]
+      : [],
+  )
+
+  const dismissToast = useCallback((id) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id))
+  }, [])
 
   const calculatedSummary = useMemo(
     () => calculateDashboardSummary(requests),
@@ -91,10 +103,18 @@ export default function ManagerPendingRequestsDashboard() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!initialNotice?.message) return
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [initialNotice?.message, location.pathname, navigate])
+
   const displaySummary = summary ?? calculatedSummary
 
   return (
     <section className="manager-dashboard">
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+
       <div className="page-title-row manager-dashboard-heading">
         <div>
           <h1>Team Requests</h1>

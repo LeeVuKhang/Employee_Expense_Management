@@ -27,6 +27,22 @@ class ExpenseLineItemRead(ExpenseLineItemBase):
     id: int
 
 
+class AttachmentRead(BaseModel):
+    id: int
+    expense_request_id: int | None = None
+    file_name: str
+    file_url: str | None = None
+    s3_bucket: str | None = None
+    s3_key: str | None = None
+    content_type: str | None = None
+    file_size_bytes: int | None = None
+    uploaded_at: datetime | None
+
+
+class AttachmentDownloadRead(BaseModel):
+    url: str
+
+
 class ExpenseCategoryRead(BaseModel):
     id: int
     name: str
@@ -50,6 +66,20 @@ class ExpenseRequestCreate(ExpenseRequestBase):
     status: RequestStatus = RequestStatus.DRAFT
     line_items: list[ExpenseLineItemCreate] = Field(default_factory=list)
 
+    # Thêm hàm này để xử lý bóc tách khi nhận dữ liệu từ FormData (khi có file đính kèm)
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate_to_json
+
+    @classmethod
+    def validate_to_json(cls, value):
+        import json
+        if isinstance(value, str):
+            try:
+                return cls(**json.loads(value))
+            except Exception as e:
+                raise ValueError(f"Dữ liệu JSON trong FormData không hợp lệ: {str(e)}")
+        return value
 
 class ExpenseRequestUpdate(BaseModel):
     category_id: int | None = None
@@ -85,23 +115,5 @@ class ExpenseRequestRead(BaseModel):
     created_at: datetime | None
     updated_at: datetime | None
     line_items: list[ExpenseLineItemRead] = Field(default_factory=list)
-    attachments: list["AttachmentRead"] = Field(default_factory=list)
-
-
-class AttachmentRead(BaseModel):
-    id: int
-    expense_request_id: int
-    file_name: str
-    file_url: str
-    s3_bucket: str | None = None
-    s3_key: str | None = None
-    content_type: str | None = None
-    file_size_bytes: int | None = None
-    uploaded_at: datetime | None = None
-
-
-# Rebuild models to resolve forward references (Pydantic v2)
-try:
-    ExpenseRequestRead.model_rebuild()
-except Exception:
-    pass
+    attachments: list[AttachmentRead] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
