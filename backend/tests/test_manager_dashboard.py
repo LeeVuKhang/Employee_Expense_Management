@@ -7,11 +7,11 @@ os.environ.setdefault("DATABASE_URL", "postgresql://user:password@localhost:5432
 
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.core.database import get_session
 from app.main import app
-from app.model.expense import ExpenseCategory, ExpenseRequest, RequestStatus
+from app.model.expense import ExpenseCategory, ExpenseRequest, RequestHistory, RequestStatus
 from app.model.user import User, UserRole
 
 
@@ -80,6 +80,56 @@ class ManagerDashboardAuthorizationTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["detail"], "Manager access required.")
+
+    def test_manager_can_approve_pending_request_to_pending_finance(self) -> None:
+        response = self.client.patch(
+            "/api/manager/requests/101/status",
+            headers={"X-User-Id": "3"},
+            json={"status": "Pending Finance"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "Pending Finance")
+        self.assertIsNone(response.json()["current_processor_id"])
+
+        with Session(self.engine) as session:
+            expense = session.get(ExpenseRequest, 101)
+            self.assertIsNotNone(expense)
+            self.assertEqual(expense.status, RequestStatus.PENDING_FINANCE)
+            self.assertIsNone(expense.current_processor_id)
+
+            history_records = session.exec(
+                select(RequestHistory).where(RequestHistory.expense_request_id == 101)
+            ).all()
+            self.assertEqual(len(history_records), 1)
+            self.assertEqual(history_records[0].actor_id, 3)
+            self.assertEqual(history_records[0].action_taken, "Approved")
+
+    def test_manager_cannot_approve_non_pending_manager_request(self) -> None:
+        response = self.client.patch(
+            "/api/manager/requests/102/status",
+            headers={"X-User-Id": "3"},
+            json={"status": "Pending Finance"},
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.json()["detail"],
+            "Only requests with status 'Pending Manager' can be approved.",
+        )
+
+    def test_manager_cannot_approve_request_outside_direct_team(self) -> None:
+        response = self.client.patch(
+            "/api/manager/requests/104/status",
+            headers={"X-User-Id": "3"},
+            json={"status": "Pending Finance"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.json()["detail"],
+            "Access denied: this request is not assigned to your team.",
+        )
 
     def _seed_data(self) -> None:
         with Session(self.engine) as session:

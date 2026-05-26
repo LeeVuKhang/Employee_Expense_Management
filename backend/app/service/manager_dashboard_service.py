@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import asc, desc, func
 from sqlmodel import Session, select
 
-from app.model.expense import ExpenseCategory, ExpenseRequest, RequestStatus
+from app.model.expense import ExpenseCategory, ExpenseRequest, RequestHistory, RequestStatus
 from app.model.user import User, UserRole
 
 ManagerPendingSort = Literal["created_at", "total_amount", "start_date", "employee_name"]
@@ -100,6 +100,60 @@ def get_pending_requests_summary_for_manager(session: Session, manager_id: int) 
         "pending_count": pending_count,
         "total_amount": total_amount,
     }
+
+
+def approve_request_for_finance(
+    session: Session,
+    expense_id: int,
+    manager_id: int,
+) -> ExpenseRequest:
+    statement = (
+        select(ExpenseRequest, User.manager_id)
+        .join(User, ExpenseRequest.employee_id == User.id)
+        .where(ExpenseRequest.id == expense_id)
+    )
+    result = session.exec(statement).first()
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense request not found.",
+        )
+
+    expense, employee_manager_id = result
+    if employee_manager_id != manager_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: this request is not assigned to your team.",
+        )
+
+    if expense.current_processor_id not in {None, manager_id}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: this request is assigned to another processor.",
+        )
+
+    if expense.status != RequestStatus.PENDING_MANAGER:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only requests with status 'Pending Manager' can be approved.",
+        )
+
+    expense.status = RequestStatus.PENDING_FINANCE
+    expense.current_processor_id = None
+    expense.rejection_reason = None
+
+    session.add(
+        RequestHistory(
+            expense_request_id=expense.id,
+            actor_id=manager_id,
+            action_taken="Approved",
+            comments="Approved by manager and forwarded to Finance.",
+        )
+    )
+    session.add(expense)
+    session.commit()
+    session.refresh(expense)
+    return expense
 
 
 def _pending_manager_filters(manager_id: int):

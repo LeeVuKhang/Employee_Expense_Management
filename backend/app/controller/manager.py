@@ -1,12 +1,20 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from app.core.database import get_session
 from app.middleware import get_current_user_id
-from app.schema.manager import ManagerPendingRequestsRead, ManagerPendingSummaryRead
+from app.model.expense import RequestStatus
+from app.schema.expense import ExpenseRequestRead
+from app.schema.manager import (
+    ManagerPendingRequestsRead,
+    ManagerPendingSummaryRead,
+    ManagerStatusUpdateRequest,
+)
+from app.service.expense_service import to_expense_read
 from app.service.manager_dashboard_service import (
+    approve_request_for_finance,
     get_pending_requests_summary_for_manager,
     list_pending_requests_for_manager,
     require_manager,
@@ -51,3 +59,29 @@ def get_manager_pending_expense_requests_summary(
         session=session,
         manager_id=manager.id,
     )
+
+
+@router.patch(
+    "/requests/{expense_id}/status",
+    response_model=ExpenseRequestRead,
+)
+def update_manager_request_status(
+    expense_id: int,
+    payload: ManagerStatusUpdateRequest,
+    session: Annotated[Session, Depends(get_session)],
+    current_user_id: Annotated[int, Depends(get_current_user_id)],
+) -> dict:
+    manager = require_manager(session, current_user_id)
+
+    if payload.status != RequestStatus.PENDING_FINANCE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manager can only approve requests to 'Pending Finance'.",
+        )
+
+    expense = approve_request_for_finance(
+        session=session,
+        expense_id=expense_id,
+        manager_id=manager.id,
+    )
+    return to_expense_read(expense, session)

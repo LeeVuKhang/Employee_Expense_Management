@@ -35,3 +35,7 @@ class ManagerPendingRequestsRead(BaseModel):
 class ManagerPendingSummaryRead(BaseModel):
     pending_count: int
     total_amount: Decimal
+
+
+class ManagerStatusUpdateRequest(BaseModel):
+    status: RequestStatus
