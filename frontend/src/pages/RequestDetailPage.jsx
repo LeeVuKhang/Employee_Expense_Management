@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Navbar from "../components/layouts/Navbar";
+import { clearAuthStorage, getAuthToken } from "../contexts/AuthContext";
 
 const FINANCE_APPROVED_STATUS = "Finance Approved";
 const PAID_STATUS = "Paid";
@@ -31,9 +32,15 @@ export default function RequestDetailPage() {
       try {
         const response = await fetch(`${apiBase}/api/finance/requests/${id}`, {
           headers: {
-            "X-User-Id": "2",
+            Authorization: `Bearer ${getAuthToken()}`,
           },
         });
+
+        if (response.status === 401) {
+          clearAuthStorage();
+          window.location.href = "/login";
+          return;
+        }
 
         if (!response.ok) {
           const message = await response.text();
@@ -72,10 +79,16 @@ export default function RequestDetailPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "X-User-Id": "2",
+          Authorization: `Bearer ${getAuthToken()}`,
         },
         body: JSON.stringify({ status, rejection_reason: rejectionReason }),
       });
+
+      if (response.status === 401) {
+        clearAuthStorage();
+        window.location.href = "/login";
+        return false;
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -124,7 +137,7 @@ export default function RequestDetailPage() {
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Finance Approvals" role="Finance" />
+      <Navbar activePage="Finance Approvals" />
 
       <main className="page-frame finance-detail-frame">
         {loading && (

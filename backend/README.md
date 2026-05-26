@@ -20,7 +20,7 @@ Copy-Item .env.example .env
 uv run uvicorn app.main:app --reload
 ```
 
-Requests that act on employee-owned expenses expect an `X-User-Id` header.
+Protected requests expect an `Authorization: Bearer <jwt>` header from `/api/auth/login`.
 
 ## Implemented APIs
 

@@ -7,8 +7,6 @@ import StatCard from "../components/ui/StatCard";
 import { STATUS_CONFIG } from "../data/mockRequests";
 import { useExpenseRequests } from "../hooks/useExpenseRequests";
 
-// TODO: Replace with the signed-in employee id once auth is wired in.
-const CURRENT_USER_ID = 4;
 const ALL_STATUSES = "all";
 
 export default function MyRequests({ onNavigate }) {
@@ -19,7 +17,7 @@ export default function MyRequests({ onNavigate }) {
     requests: myRequests,
     loading,
     error,
-  } = useExpenseRequests(CURRENT_USER_ID);
+  } = useExpenseRequests();
 
   const stats = useMemo(() => {
     const total = myRequests.length;
