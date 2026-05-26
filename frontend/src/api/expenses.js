@@ -114,14 +114,16 @@ export async function fetchExpenseRequest(expenseId) {
 }
 
 export async function createExpenseRequest(payload) {
-  const apiPayload = toExpenseApiPayload(payload, { includeStatus: true });
+  const isFormData = payload instanceof FormData
 
   const expense = await requestExpense(expenseApiRoutes.list, {
     method: 'POST',
     // Bỏ JSON.stringify nếu apiPayload đã là một thực thể FormData
-    body: apiPayload instanceof FormData ? apiPayload : JSON.stringify(apiPayload),
-  });
-  return toExpenseViewModel(expense);
+    body: isFormData
+      ? payload
+      : JSON.stringify(toExpenseApiPayload(payload, { includeStatus: true })),
+  })
+  return toExpenseViewModel(expense)
 }
 
 export async function updateExpenseRequest(expenseId, payload) {
