@@ -1,18 +1,25 @@
 import json
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
-from app.service.ocr_service import scan_receipt_for_data
-
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from app.core.database import get_session
 from app.middleware import get_current_user_id, require_expense_owner, require_role
-from app.model.expense import ExpenseCategory, ExpenseRequest, RequestStatus
+from app.model.expense import Attachment, ExpenseCategory, ExpenseRequest, RequestStatus
 from app.model.user import UserRole
-from app.schema.expense import ExpenseRequestCreate, ExpenseRequestRead, ExpenseRequestUpdate
-from app.service.attachment_service import parse_attachments, store_attachments
+from app.schema.expense import (
+    AttachmentDownloadRead,
+    ExpenseRequestCreate,
+    ExpenseRequestRead,
+    ExpenseRequestUpdate,
+)
+from app.service.attachment_service import (
+    get_attachment_download_url,
+    parse_attachments,
+    store_attachments,
+)
 from app.service.expense_service import (
     cancel_expense_request,
     create_expense_request,
@@ -86,10 +93,10 @@ async def _payload_from_request(
     current_user_id: int,
 ) -> tuple[int, ExpenseRequestCreate, list[UploadFile]]:
     content_type = request.headers.get("content-type", "")
+    uploads: list[UploadFile] = []
 
     if content_type.startswith("multipart/form-data"):
         form = await request.form()
-        uploads = []
         
         # 1. Trích xuất các tệp đính kèm từ form gửi lên
         for key in ["file", "attachments", "proofs"]:
@@ -179,7 +186,7 @@ def list_my_expense_requests(
 ) -> list[dict]:
     statement = select(ExpenseRequest).where(ExpenseRequest.employee_id == current_user_id)
     expenses = session.exec(statement).all()
-    return [to_expense_read(expense, session) for expense in expenses]
+    return [to_expense_read(expense, session, include_attachments=True) for expense in expenses]
 
 
 @router.post("", response_model=ExpenseRequestRead, status_code=status.HTTP_201_CREATED)
@@ -199,7 +206,7 @@ async def create_my_expense_request(
     if attachments:
         session.refresh(expense)
 
-    response = to_expense_read(expense, session)
+    response = to_expense_read(expense, session, include_attachments=True)
     if warnings:
         response["warnings"] = warnings
     return response
@@ -210,7 +217,31 @@ def get_my_expense_request(
     expense: Annotated[ExpenseRequest, Depends(require_expense_owner)],
     session: Annotated[Session, Depends(get_session)],
 ) -> dict:
-    return to_expense_read(expense, session)
+    return to_expense_read(expense, session, include_attachments=True)
+
+
+@router.get(
+    "/{expense_id}/attachments/{attachment_id}/download-url",
+    response_model=AttachmentDownloadRead,
+)
+def get_my_attachment_download_url(
+    attachment_id: int,
+    expense: Annotated[ExpenseRequest, Depends(require_expense_owner)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, str]:
+    attachment = session.exec(
+        select(Attachment).where(
+            Attachment.id == attachment_id,
+            Attachment.expense_request_id == expense.id,
+        )
+    ).first()
+    if attachment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attachment not found.",
+        )
+
+    return {"url": get_attachment_download_url(attachment)}
 
 
 @router.put("/{expense_id}", response_model=ExpenseRequestRead)
@@ -220,6 +251,16 @@ async def update_my_expense_request(
     session: Annotated[Session, Depends(get_session)],
     current_user_id: Annotated[int, Depends(get_current_user_id)],
 ) -> dict:
+    status_value = expense.status.value if isinstance(expense.status, RequestStatus) else expense.status
+    if expense.is_locked or status_value not in {
+        RequestStatus.DRAFT.value,
+        RequestStatus.PENDING_MANAGER.value,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Draft or Pending Manager requests can be changed.",
+        )
+
     # 1. Tận dụng hàm helper chung để bóc tách text và file (nếu người dùng cập nhật lại ảnh mới)
     _, payload_create, uploads = await _payload_from_request(request, session, current_user_id)
     
@@ -235,11 +276,14 @@ async def update_my_expense_request(
     updated = update_expense_request(session, expense, payload, current_user_id)
     
     # 4. Xử lý tệp đính kèm mới nếu có upload bổ sung khi chỉnh sửa
+    warnings: list[str] = []
     if uploads:
         attachments = await parse_attachments(uploads)
-        store_attachments(session, updated.id, attachments)
+        warnings = store_attachments(session, updated.id, attachments)
 
-    return to_expense_read(updated, session)
+    response = to_expense_read(updated, session, include_attachments=True)
+    response["warnings"] = warnings
+    return response
 
 
 @router.patch("/{expense_id}/cancel", response_model=ExpenseRequestRead)
@@ -249,7 +293,7 @@ def cancel_my_expense_request(
     current_user_id: Annotated[int, Depends(get_current_user_id)],
 ) -> dict:
     cancelled = cancel_expense_request(session, expense, current_user_id)
-    return to_expense_read(cancelled, session)
+    return to_expense_read(cancelled, session, include_attachments=True)
 
 
 @router.post(
@@ -263,7 +307,7 @@ def duplicate_my_expense_request(
     current_user_id: Annotated[int, Depends(get_current_user_id)],
 ) -> dict:
     duplicated = duplicate_expense_request(session, source, current_user_id)
-    return to_expense_read(duplicated, session)
+    return to_expense_read(duplicated, session, include_attachments=True)
 @router.post("/scan")
 async def scan_expense_receipt(file: UploadFile = File(...)) -> dict:
     """
@@ -272,6 +316,8 @@ async def scan_expense_receipt(file: UploadFile = File(...)) -> dict:
     { date, total_amount, vendor_name, category_id }
     """
     try:
+        from app.service.ocr_service import scan_receipt_for_data
+
         contents = await file.read()
         result = scan_receipt_for_data(contents)
         return result

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import AnyUrl, Field, field_validator
+from pydantic import AliasChoices, AnyUrl, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,7 +21,10 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     aws_region: str = "ap-southeast-1"
-    s3_bucket: str | None = Field(default=None, alias="AWS_S3_BUCKET")
+    s3_bucket: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_S3_BUCKET", "AWS_BUCKET_NAME"),
+    )
 
     client_api: str
 
