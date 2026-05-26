@@ -182,6 +182,10 @@ function emptyLineItem() {
   return { date: "", name: "", amount: "", note: "" };
 }
 
+function isLineItemEmpty(item) {
+  return !item.date && !item.name?.trim() && !item.amount && !item.note?.trim();
+}
+
 function requestToFormState(request) {
   if (!request) {
     return {
@@ -342,36 +346,28 @@ export default function NewExpenseRequest({
       }
 
       const body = await res.json();
-      if (body.date) {
-        setStartDate(body.date);
-        setEndDate(body.date);
-      }
-      if (body.total_amount) {
+      const scannedItem = {
+        date: body.date ?? "",
+        name: body.vendor_name ?? "",
+        amount: body.total_amount ? String(body.total_amount) : "",
+        note: "",
+      };
+
+      if (scannedItem.date || scannedItem.name || scannedItem.amount) {
         setItems((current) => {
           const next = [...current];
-          if (!next.length) next.push(emptyLineItem());
-          next[0] = { ...next[0], amount: String(body.total_amount) };
+          const emptyIndex = next.findIndex(isLineItemEmpty);
+          if (emptyIndex !== -1) {
+            next[emptyIndex] = { ...next[emptyIndex], ...scannedItem };
+            return next;
+          }
+          if (next.length < MAX_FILES) {
+            return [...next, scannedItem];
+          }
           return next;
         });
-      }
-      if (body.vendor_name) {
-        setItems((current) => {
-          const next = [...current];
-          if (!next.length) next.push(emptyLineItem());
-          next[0] = {
-            ...next[0],
-            name: body.vendor_name,
-            note: next[0].note || "",
-          };
-          return next;
-        });
-      }
-      if (body.category_id) {
-        const matchedCategory = categories.find((option) => option.id === body.category_id);
-        if (matchedCategory) {
-          setCategory(matchedCategory.name);
-        }
-        setCategoryId(body.category_id);
+      } else {
+        addToast("No line item data was recognized from this receipt.", "info");
       }
       addToast("Receipt scanned successfully!", "success");
     } catch (err) {
