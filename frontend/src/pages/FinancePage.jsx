@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/layouts/Navbar";
 import StatusBadge from "../components/requests/StatusBadge";
 import SearchBar from "../components/ui/SearchBar";
+import { clearAuthStorage, getAuthToken } from "../contexts/AuthContext";
 
 const FINANCE_FILTER_OPTIONS = [
   { value: "All", label: "All Finance Statuses" },
@@ -33,9 +34,15 @@ export default function FinancePage() {
       try {
         const response = await fetch(`${apiBase}/api/finance/pending`, {
           headers: {
-            "X-User-Id": "2",
+            Authorization: `Bearer ${getAuthToken()}`,
           },
         });
+
+        if (response.status === 401) {
+          clearAuthStorage();
+          window.location.href = "/login";
+          return;
+        }
 
         if (!response.ok) {
           const message = await response.text();
@@ -86,7 +93,7 @@ export default function FinancePage() {
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Finance Approvals" role="Finance" />
+      <Navbar activePage="Finance Approvals" />
 
       <main className="page-frame finance-page-frame">
         <section className="finance-dashboard">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  fetchExpenseRequest,
+  fetchManagerExpenseRequest,
   updateManagerExpenseRequestStatus,
 } from "../api/expenses";
 import Navbar from "../components/layouts/Navbar";
@@ -40,7 +40,7 @@ export default function ManagerRequestDetail() {
       }
 
       try {
-        const fetchedRequest = await fetchExpenseRequest(requestId);
+        const fetchedRequest = await fetchManagerExpenseRequest(requestId);
         if (isCurrent) {
           setRequest(toManagerDetailViewModel(fetchedRequest));
         }
@@ -109,7 +109,7 @@ export default function ManagerRequestDetail() {
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Team Requests" role="Manager" />
+      <Navbar activePage="Team Requests" />
 
       <main className="page-frame manager-detail-frame">
         {loading && (
