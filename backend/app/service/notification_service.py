@@ -112,3 +112,29 @@ def mark_all_notifications_read(
         notification.is_read = True
         session.add(notification)
     return notifications
+
+
+def queue_status_change_notification(
+    session: Session,
+    expense: "ExpenseRequest",
+    new_status: "RequestStatus",
+    actor_role: str,
+    rejection_reason: str | None = None,
+) -> Notification | None:
+    from app.model.expense import RequestStatus
+
+    if new_status == RequestStatus.REJECTED and rejection_reason:
+        return create_request_rejected_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+            rejection_reason=rejection_reason,
+        )
+    if new_status == RequestStatus.PAID:
+        return create_request_paid_notification(
+            session=session,
+            employee_id=expense.employee_id,
+            request_id=expense.id,
+        )
+    return None
+

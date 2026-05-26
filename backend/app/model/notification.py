@@ -6,6 +6,7 @@ from sqlmodel import Field, SQLModel
 
 class Notification(SQLModel, table=True):
     __tablename__ = "notifications"
+    __table_args__ = {"extend_existing": True}
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(
