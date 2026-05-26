@@ -5,6 +5,10 @@ from uuid import uuid4
 import boto3
 from fastapi import HTTPException, UploadFile, status
 from sqlmodel import Session
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:  # pragma: no cover - fallback for environments without defusedxml installed
+    import xml.etree.ElementTree as ET
 
 from app.core.config import settings
 from app.model.expense import Attachment
@@ -31,6 +35,54 @@ class PendingAttachment:
         return len(self.content)
 
 
+def _is_safe_svg(content: bytes) -> bool:
+    """
+    Parses the SVG to ensure it is well-formed and rejects payloads with scripts,
+    inline event handlers, or javascript: URIs.
+    """
+    if b"<svg" not in content[:1024].lower():
+        return False
+
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError:
+        return False
+
+    if not root.tag.lower().endswith("svg"):
+        return False
+
+    for elem in root.iter():
+        if elem.tag.lower().endswith("script"):
+            return False
+
+        for attr_name, attr_value in elem.attrib.items():
+            if attr_name.lower().startswith("on"):
+                return False
+            if "javascript:" in attr_value.lower():
+                return False
+
+    return True
+
+
+def _verify_file_signature(content: bytes) -> str | None:
+    """
+    Checks the file's magic bytes to determine its actual format.
+    """
+    if content.startswith(b"%PDF-"):
+        return "application/pdf"
+
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+
+    if _is_safe_svg(content):
+        return "image/svg+xml"
+
+    return None
+
+
 async def parse_attachments(files: list[UploadFile]) -> list[PendingAttachment]:
     if len(files) > MAX_ATTACHMENT_COUNT:
         raise HTTPException(
@@ -40,18 +92,27 @@ async def parse_attachments(files: list[UploadFile]) -> list[PendingAttachment]:
 
     attachments: list[PendingAttachment] = []
     for upload in files:
-        content_type = upload.content_type
-        if content_type not in ALLOWED_ATTACHMENT_TYPES:
+        content = await upload.read()
+        if not content:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file type. Only SVG, JPG, PNG, and PDF are allowed.",
+                detail=f"File '{upload.filename}' is empty. 0-byte files are not allowed.",
             )
 
-        content = await upload.read()
         if len(content) > MAX_ATTACHMENT_SIZE_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Each attachment must be 10MB or smaller.",
+            )
+
+        content_type = _verify_file_signature(content)
+        if not content_type or content_type not in ALLOWED_ATTACHMENT_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid file content in '{upload.filename}'. "
+                    "The file does not match an allowed format (SVG, JPG, PNG, PDF)."
+                ),
             )
 
         filename = PurePath(upload.filename or "attachment").name
