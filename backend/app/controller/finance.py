@@ -6,13 +6,30 @@ from sqlmodel import Session, select
 
 from app.core.database import get_session
 from app.middleware import require_finance_role
-from app.model.expense import ExpenseCategory, ExpenseLineItem, ExpenseRequest, RequestStatus
+from app.model.expense import Attachment, ExpenseCategory, ExpenseLineItem, ExpenseRequest, RequestStatus
 from app.model.user import User
 from app.schema.finance import FinanceExpenseRequestRead, FinancePendingListResponse, FinanceStatusUpdateRequest
+from app.service.attachment_service import get_presigned_url
 from app.service.finance_service import (
     get_finance_pending_requests,
     update_finance_request_status as update_finance_request_status_service,
 )
+
+
+def _get_attachments_data(session: Session, expense_id: int) -> list[dict]:
+    """Query attachments for an expense and return serialised dicts with presigned URLs."""
+    attachments = session.exec(
+        select(Attachment).where(Attachment.expense_request_id == expense_id)
+    ).all()
+    result = []
+    for att in attachments:
+        data = att.model_dump()
+        if att.s3_bucket and att.s3_key:
+            presigned = get_presigned_url(att.s3_bucket, att.s3_key)
+            if presigned:
+                data["file_url"] = presigned
+        result.append(data)
+    return result
 
 router = APIRouter()
 
@@ -71,6 +88,7 @@ def get_finance_expense_request(
         ExpenseLineItem.expense_request_id == expense.id
     )
     line_items = session.exec(line_items_statement).all()
+    attachments_data = _get_attachments_data(session, expense.id)
 
     return FinanceExpenseRequestRead(
         id=expense.id,
@@ -88,6 +106,7 @@ def get_finance_expense_request(
         created_at=expense.created_at,
         updated_at=expense.updated_at,
         line_items=[item.model_dump() for item in line_items],
+        attachments=attachments_data,
     )
 
 
@@ -141,6 +160,7 @@ def update_finance_request_status(
         ExpenseLineItem.expense_request_id == expense.id
     )
     line_items = session.exec(line_items_statement).all()
+    attachments_data = _get_attachments_data(session, expense.id)
 
     return FinanceExpenseRequestRead(
         id=expense.id,
@@ -158,4 +178,5 @@ def update_finance_request_status(
         created_at=expense.created_at,
         updated_at=expense.updated_at,
         line_items=[item.model_dump() for item in line_items],
+        attachments=attachments_data,
     )
