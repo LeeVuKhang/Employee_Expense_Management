@@ -27,6 +27,7 @@ class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     full_name: str = Field(sa_column=Column(String(150), nullable=False))
     email: str = Field(sa_column=Column(String(255), unique=True, nullable=False))
+    password_hash: str = Field(sa_column=Column(String(255), nullable=False))
     role: UserRole = Field(sa_column=Column(user_role_column, nullable=False))
     manager_id: int | None = Field(default=None, foreign_key="users.id")
     created_at: datetime | None = None

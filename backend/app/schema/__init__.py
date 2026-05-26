@@ -1,3 +1,4 @@
+from app.schema.auth import LoginRequest, LoginResponse, UserRead
 from app.schema.expense import (
     ExpenseLineItemCreate,
     ExpenseLineItemRead,
@@ -9,6 +10,7 @@ from app.schema.manager import (
     ManagerPendingRequestRead,
     ManagerPendingRequestsRead,
     ManagerPendingSummaryRead,
+    ManagerStatusUpdateRequest,
     PaginationRead,
 )
 
@@ -18,8 +20,12 @@ __all__ = [
     "ExpenseRequestCreate",
     "ExpenseRequestRead",
     "ExpenseRequestUpdate",
+    "LoginRequest",
+    "LoginResponse",
     "ManagerPendingRequestRead",
     "ManagerPendingRequestsRead",
     "ManagerPendingSummaryRead",
+    "ManagerStatusUpdateRequest",
     "PaginationRead",
+    "UserRead",
 ]
