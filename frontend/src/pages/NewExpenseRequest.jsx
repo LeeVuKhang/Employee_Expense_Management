@@ -135,7 +135,7 @@ function LineItem({ item, index, onChange, onRemove, showRemove, errors }) {
   );
 }
 
-function SuccessScreen({ category, totalAmount, isDraft, onReset }) {
+function SuccessScreen({ category, totalAmount, isDraft, onReset, warnings }) {
   return (
     <main className="request-success-page">
       <div className="card request-success-card">
@@ -161,6 +161,13 @@ function SuccessScreen({ category, totalAmount, isDraft, onReset }) {
             <strong>{isDraft ? "Draft" : "Pending Manager"}</strong>
           </div>
         </div>
+
+        {warnings.length > 0 && (
+          <div className="request-success-warning" role="alert">
+            <strong>Attachments were not uploaded.</strong>
+            <span>{warnings.join(" ")}</span>
+          </div>
+        )}
 
         <button className="primary-button" onClick={onReset} type="button">
           New Request
@@ -224,6 +231,7 @@ export default function NewExpenseRequest({
   const [attachments, setAttachments] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [fileErrors, setFileErrors] = useState([]);
+  const [submissionWarnings, setSubmissionWarnings] = useState([]);
   const [formErrors, setFormErrors] = useState({});
   const [itemErrors, setItemErrors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -357,7 +365,7 @@ export default function NewExpenseRequest({
         }
         setCategoryId(body.category_id);
       }
-    } catch (err) {
+    } catch {
       // Best-effort; silently ignore scan failures
     } finally {
       setIsScanning(false);
@@ -433,6 +441,7 @@ export default function NewExpenseRequest({
           categoryId: resolvedCategoryId,
           tripStart: startDate,
           tripEnd: endDate,
+          attachments,
           lineItems: items.map((item) => ({
             date: item.date,
             itemName: item.name,
@@ -440,6 +449,11 @@ export default function NewExpenseRequest({
             purpose: item.note || "No note provided",
           })),
         });
+
+        if (updatedRequest.warnings.length > 0) {
+          addToast("Request updated, but attachments were not uploaded.", "error");
+          return;
+        }
 
         addToast("Request updated successfully.", "success");
         setTimeout(() => onSaved?.(updatedRequest), 800);
@@ -456,9 +470,15 @@ export default function NewExpenseRequest({
       formData.append("lineItems", JSON.stringify(items));
       attachments.forEach((file) => formData.append("attachments", file));
 
-      await createExpenseRequest(formData);
+      const createdRequest = await createExpenseRequest(formData);
+      const warnings = createdRequest.warnings ?? [];
+      setSubmissionWarnings(warnings);
 
-      addToast(draft ? "Draft saved successfully." : "Request submitted for approval.", "success");
+      if (warnings.length > 0) {
+        addToast("Request saved, but attachments were not uploaded.", "error");
+      } else {
+        addToast(draft ? "Draft saved successfully." : "Request submitted for approval.", "success");
+      }
       setTimeout(() => setSubmitted(true), 800);
     } catch (err) {
       addToast(err.message, "error");
@@ -478,6 +498,7 @@ export default function NewExpenseRequest({
     setItems(nextForm.items);
     setAttachments([]);
     setFileErrors([]);
+    setSubmissionWarnings([]);
     setFormErrors({});
     setItemErrors([]);
     setIsDraft(false);
@@ -491,6 +512,7 @@ export default function NewExpenseRequest({
           category={category}
           isDraft={isDraft}
           onReset={handleReset}
+          warnings={submissionWarnings}
           totalAmount={totalAmount}
         />
       </>

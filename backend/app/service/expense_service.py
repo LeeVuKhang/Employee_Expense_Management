@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from app.model.expense import (
+    Attachment,
     ExpenseCategory,
     ExpenseLineItem,
     ExpenseRequest,
@@ -38,6 +39,11 @@ def _line_items_total(line_items: list[ExpenseLineItemCreate]) -> Decimal:
 
 def _get_line_items(session: Session, expense_id: int) -> list[ExpenseLineItem]:
     statement = select(ExpenseLineItem).where(ExpenseLineItem.expense_request_id == expense_id)
+    return list(session.exec(statement).all())
+
+
+def _get_attachments(session: Session, expense_id: int) -> list[Attachment]:
+    statement = select(Attachment).where(Attachment.expense_request_id == expense_id)
     return list(session.exec(statement).all())
 
 
@@ -196,8 +202,13 @@ def duplicate_expense_request(
     return new_expense
 
 
-def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
-    return {
+def to_expense_read(
+    expense: ExpenseRequest,
+    session: Session,
+    *,
+    include_attachments: bool = False,
+) -> dict:
+    response = {
         **expense.model_dump(),
         "employee_name": _get_user_name(session, expense.employee_id),
         "category_name": _get_category_name(session, expense.category_id),
@@ -207,3 +218,15 @@ def to_expense_read(expense: ExpenseRequest, session: Session) -> dict:
             for line_item in _get_line_items(session, expense.id)
         ],
     }
+    if include_attachments:
+        response["attachments"] = [
+            {
+                "id": attachment.id,
+                "file_name": attachment.file_name,
+                "content_type": attachment.content_type,
+                "file_size_bytes": attachment.file_size_bytes,
+                "uploaded_at": attachment.uploaded_at,
+            }
+            for attachment in _get_attachments(session, expense.id)
+        ]
+    return response

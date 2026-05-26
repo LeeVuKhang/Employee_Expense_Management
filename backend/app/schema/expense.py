@@ -27,6 +27,18 @@ class ExpenseLineItemRead(ExpenseLineItemBase):
     id: int
 
 
+class AttachmentRead(BaseModel):
+    id: int
+    file_name: str
+    content_type: str | None
+    file_size_bytes: int
+    uploaded_at: datetime | None
+
+
+class AttachmentDownloadRead(BaseModel):
+    url: str
+
+
 class ExpenseCategoryRead(BaseModel):
     id: int
     name: str
@@ -99,3 +111,5 @@ class ExpenseRequestRead(BaseModel):
     created_at: datetime | None
     updated_at: datetime | None
     line_items: list[ExpenseLineItemRead] = Field(default_factory=list)
+    attachments: list[AttachmentRead] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)

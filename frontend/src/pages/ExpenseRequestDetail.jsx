@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   cancelExpenseRequest,
   duplicateExpenseRequest,
+  fetchExpenseAttachmentDownloadUrl,
   fetchExpenseRequest,
 } from "../api/expenses";
 import CancelRequestModal from "../components/requests/CancelRequestModal";
@@ -87,6 +88,7 @@ export default function ExpenseRequestDetail({
   const [loading, setLoading] = useState(!initialRequest);
   const [error, setError] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [openingAttachmentId, setOpeningAttachmentId] = useState(null);
 
   useEffect(() => {
     let ignore = false;
@@ -163,6 +165,28 @@ export default function ExpenseRequestDetail({
     }
   }
 
+  async function openAttachment(attachment) {
+    const previewWindow = window.open("", "_blank");
+    if (previewWindow) previewWindow.opener = null;
+
+    setOpeningAttachmentId(attachment.id);
+    setNotice(null);
+
+    try {
+      const url = await fetchExpenseAttachmentDownloadUrl(request.id, attachment.id);
+      if (previewWindow) {
+        previewWindow.location.href = url;
+      } else {
+        window.location.assign(url);
+      }
+    } catch (err) {
+      previewWindow?.close();
+      showNotice("error", err.message);
+    } finally {
+      setOpeningAttachmentId(null);
+    }
+  }
+
   return (
     <div className="app-shell">
       <main className="page-frame request-detail-frame">
@@ -234,9 +258,15 @@ export default function ExpenseRequestDetail({
                   <div className="attachment-box">
                     {request.attachments.length ? (
                       request.attachments.map((attachment) => (
-                        <span className="attachment-chip" key={attachment.id ?? attachment.fileName}>
+                        <button
+                          className="attachment-chip attachment-button"
+                          disabled={openingAttachmentId === attachment.id}
+                          key={attachment.id ?? attachment.fileName}
+                          onClick={() => openAttachment(attachment)}
+                          type="button"
+                        >
                           {attachment.fileName}
-                        </span>
+                        </button>
                       ))
                     ) : (
                       <em>No attachments provided.</em>

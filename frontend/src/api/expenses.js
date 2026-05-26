@@ -113,23 +113,29 @@ export async function fetchExpenseRequest(expenseId) {
   return toExpenseViewModel(expense)
 }
 
+export async function fetchExpenseAttachmentDownloadUrl(expenseId, attachmentId) {
+  const response = await requestExpense(expenseApiRoutes.attachmentDownload(expenseId, attachmentId))
+  return response.url
+}
+
 export async function createExpenseRequest(payload) {
-  const isFormData = payload instanceof FormData
+  const apiPayload = payload instanceof FormData
+    ? payload
+    : toExpenseApiPayload(payload, { includeStatus: true });
 
   const expense = await requestExpense(expenseApiRoutes.list, {
     method: 'POST',
     // Bỏ JSON.stringify nếu apiPayload đã là một thực thể FormData
-    body: isFormData
-      ? payload
-      : JSON.stringify(toExpenseApiPayload(payload, { includeStatus: true })),
-  })
-  return toExpenseViewModel(expense)
+    body: apiPayload instanceof FormData ? apiPayload : JSON.stringify(apiPayload),
+  });
+  return toExpenseViewModel(expense);
 }
 
 export async function updateExpenseRequest(expenseId, payload) {
+  const apiPayload = toExpenseApiPayload(payload)
   const expense = await requestExpense(expenseApiRoutes.detail(expenseId), {
     method: 'PUT',
-    body: JSON.stringify(toExpenseApiPayload(payload)),
+    body: apiPayload instanceof FormData ? apiPayload : JSON.stringify(apiPayload),
   })
   return toExpenseViewModel(expense)
 }
@@ -184,7 +190,14 @@ function toExpenseViewModel(expense) {
     status: expense.status,
     processor,
     isLocked: Boolean(expense.is_locked),
-    attachments: [],
+    warnings: expense.warnings ?? [],
+    attachments: (expense.attachments ?? []).map((attachment) => ({
+      id: String(attachment.id),
+      fileName: attachment.file_name,
+      contentType: attachment.content_type,
+      fileSizeBytes: Number(attachment.file_size_bytes ?? 0),
+      uploadedAt: attachment.uploaded_at,
+    })),
     lineItems,
     timeline: [
       {
@@ -275,12 +288,12 @@ function toExpenseApiPayload(expense, options = {}) {
   }
 
   // Thu thập file ảnh chuẩn xác
-  const fileToUpload = expense.file || (expense.attachments && expense.attachments[0]);
+  const filesToUpload = expense.file ? [expense.file] : (expense.attachments ?? []);
 
   // 2. NẾU CÓ FILE ĐÍNH KÈM: Đóng gói đồng nhất dữ liệu vào key 'data'
-  if (fileToUpload) {
+  if (filesToUpload.length > 0) {
     const formData = new FormData();
-    formData.append('file', fileToUpload); 
+    filesToUpload.forEach((file) => formData.append('attachments', file));
     formData.append('data', JSON.stringify(rawPayload)); 
     return formData;
   }
