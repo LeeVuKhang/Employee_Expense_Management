@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { updateExpenseRequest } from "../api/expenses";
+import { createExpenseRequest, updateExpenseRequest } from "../api/expenses";
 import Navbar from "../components/layouts/Navbar";
 
 const MAX_FILES = 3;
@@ -13,6 +13,7 @@ const FALLBACK_CATEGORIES = [
   { id: 4, name: "Office Supplies" },
   { id: 5, name: "Training" },
 ];
+const API_BASE = import.meta.env.VITE_API_URL || "";
 const today = () => new Date().toISOString().split("T")[0];
 
 function Toast({ toasts, remove }) {
@@ -236,7 +237,7 @@ export default function NewExpenseRequest({
 
     async function loadCategories() {
       try {
-        const response = await fetch("/api/expense-categories");
+        const response = await fetch(`${API_BASE}/api/expense-categories`);
         if (!response.ok) return;
 
         const data = await response.json();
@@ -445,7 +446,6 @@ export default function NewExpenseRequest({
         return;
       }
 
-      const testEmployeeId = "4";
       const formData = new FormData();
       formData.append("category", category);
       if (resolvedCategoryId) formData.append("categoryId", String(resolvedCategoryId));
@@ -454,21 +454,9 @@ export default function NewExpenseRequest({
       formData.append("totalAmount", totalAmount.toFixed(2));
       formData.append("isDraft", String(draft));
       formData.append("lineItems", JSON.stringify(items));
-      formData.append("employeeId", testEmployeeId);
       attachments.forEach((file) => formData.append("attachments", file));
 
-      const res = await fetch("/api/expenses", { method: "POST", body: formData });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const detail = Array.isArray(data.detail) ? data.detail[0]?.msg : data.detail;
-        throw new Error(
-          data.error ||
-            data.message ||
-            detail ||
-            `Server error (${res.status}). Please try again.`,
-        );
-      }
+      await createExpenseRequest(formData);
 
       addToast(draft ? "Draft saved successfully." : "Request submitted for approval.", "success");
       setTimeout(() => setSubmitted(true), 800);

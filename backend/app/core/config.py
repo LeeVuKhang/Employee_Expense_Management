@@ -11,6 +11,10 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./dev.db"
 
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 1440
+
     supabase_url: AnyUrl | None = None
     supabase_key: str | None = None
 
@@ -19,8 +23,13 @@ class Settings(BaseSettings):
     aws_region: str = "ap-southeast-1"
     s3_bucket: str | None = Field(default=None, alias="AWS_S3_BUCKET")
 
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    client_api: str
 
+    @property
+    def cors_origins(self) -> list[str]:
+        return [self.client_api]
+
+    
     @field_validator("debug", mode="before")
     @classmethod
     def parse_debug(cls, value: object) -> bool:

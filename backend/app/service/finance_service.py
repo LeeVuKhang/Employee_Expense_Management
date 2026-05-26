@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from app.model.expense import ExpenseLineItem, ExpenseRequest, RequestStatus, ExpenseCategory
 from app.model.user import User
 from app.schema.finance import FinanceExpenseRequestRead, FinancePendingListResponse, FinancePendingSummary
+from app.service.notification_service import queue_status_change_notification
 
 
 def get_finance_pending_requests(session: Session) -> FinancePendingListResponse:
@@ -127,6 +128,15 @@ def update_finance_request_status(
 
     expense.status = new_status
     expense.is_locked = True  # Lock after Finance processes
+
+    if new_status in {RequestStatus.FINANCE_APPROVED, RequestStatus.REJECTED}:
+        queue_status_change_notification(
+            session=session,
+            expense=expense,
+            new_status=new_status,
+            actor_role="Finance",
+            rejection_reason=expense.rejection_reason,
+        )
 
     session.add(
         RequestHistory(

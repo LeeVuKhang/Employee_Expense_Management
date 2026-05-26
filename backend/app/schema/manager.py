@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.model.expense import RequestStatus
 
@@ -35,3 +35,17 @@ class ManagerPendingRequestsRead(BaseModel):
 class ManagerPendingSummaryRead(BaseModel):
     pending_count: int
     total_amount: Decimal
+
+
+class ManagerStatusUpdateRequest(BaseModel):
+    status: RequestStatus = Field(
+        ...,
+        description="Target status: 'Pending Finance' or 'Rejected'",
+    )
+    rejection_reason: str | None = Field(default=None, min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_rejection_reason(self) -> "ManagerStatusUpdateRequest":
+        if self.status == RequestStatus.REJECTED and not self.rejection_reason:
+            raise ValueError("rejection_reason is required when status is 'Rejected'.")
+        return self

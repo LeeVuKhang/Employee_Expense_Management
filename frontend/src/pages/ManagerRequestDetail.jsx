@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  fetchExpenseRequest,
-  updateManagerExpenseRequestStatus,
+  approveManagerExpenseRequest,
+  fetchManagerExpenseRequest,
+  rejectManagerExpenseRequest,
 } from "../api/expenses";
 import Navbar from "../components/layouts/Navbar";
+import ToastStack from "../components/ui/ToastStack";
 
 const PENDING_MANAGER_STATUS = "Pending Manager";
-const APPROVED_FOR_FINANCE_STATUS = "Pending Finance";
+const PENDING_FINANCE_STATUS = "Pending Finance";
 const REJECTED_STATUS = "Rejected";
+const MANAGER_PENDING_PATH = "/manager/pending-requests";
 
 export default function ManagerRequestDetail() {
   const { requestId } = useParams();
@@ -21,11 +24,25 @@ export default function ManagerRequestDetail() {
   );
   const [loading, setLoading] = useState(!routeRequest);
   const [loadError, setLoadError] = useState(null);
-  const [actionError, setActionError] = useState(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectReasonError, setRejectReasonError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [loadingApprove, setLoadingApprove] = useState(false);
+  const [loadingReject, setLoadingReject] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const isProcessing = loadingApprove || loadingReject;
+
+  const addToast = useCallback((message, type = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((current) => [...current, { id, message, type }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 4000);
+  }, []);
+
+  const dismissToast = useCallback((id) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -40,7 +57,7 @@ export default function ManagerRequestDetail() {
       }
 
       try {
-        const fetchedRequest = await fetchExpenseRequest(requestId);
+        const fetchedRequest = await fetchManagerExpenseRequest(requestId);
         if (isCurrent) {
           setRequest(toManagerDetailViewModel(fetchedRequest));
         }
@@ -63,45 +80,62 @@ export default function ManagerRequestDetail() {
     };
   }, [requestId, routeRequest]);
 
-  async function updateStatus(status, rejectionReason = null) {
-    setSubmitting(true);
-    setActionError(null);
+  async function handleApprove() {
+    if (isProcessing) return;
+
+    setLoadingApprove(true);
 
     try {
-      const updatedRequest = await updateManagerExpenseRequestStatus(requestId, {
-        status,
-        rejectionReason,
-      });
+      const updatedRequest = await approveManagerExpenseRequest(requestId);
       setRequest(toManagerDetailViewModel(updatedRequest));
-      return true;
+      navigate(MANAGER_PENDING_PATH, {
+        state: {
+          notice: {
+            type: "success",
+            message: "Request approved successfully",
+          },
+        },
+      });
     } catch (error) {
-      setActionError(error.message);
-      return false;
-    } finally {
-      setSubmitting(false);
+      addToast(error.message, "error");
+      setLoadingApprove(false);
     }
-  }
-
-  async function handleApprove() {
-    await updateStatus(APPROVED_FOR_FINANCE_STATUS);
   }
 
   async function handleReject() {
+    if (isProcessing) return;
+
     const reason = rejectReason.trim();
     if (!reason) {
-      setRejectReasonError("Reason is required.");
+      setRejectReasonError("Rejection reason is required");
       return;
     }
 
-    const updated = await updateStatus(REJECTED_STATUS, reason);
-    if (updated) {
+    setLoadingReject(true);
+
+    try {
+      const updatedRequest = await rejectManagerExpenseRequest(requestId, reason);
+      setRequest(toManagerDetailViewModel(updatedRequest));
       setShowRejectModal(false);
       setRejectReason("");
       setRejectReasonError("");
+      navigate(MANAGER_PENDING_PATH, {
+        state: {
+          notice: {
+            type: "success",
+            message: "Request rejected successfully",
+          },
+        },
+      });
+    } catch (error) {
+      addToast(error.message, "error");
+      setLoadingReject(false);
     }
   }
 
   function openRejectModal() {
+    if (isProcessing) return;
+
     setRejectReason("");
     setRejectReasonError("");
     setShowRejectModal(true);
@@ -109,9 +143,11 @@ export default function ManagerRequestDetail() {
 
   return (
     <div className="app-shell">
-      <Navbar activePage="Team Requests" role="Manager" />
+      <Navbar activePage="Team Requests" />
 
       <main className="page-frame manager-detail-frame">
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+
         {loading && (
           <div className="card dashboard-state" role="status">
             Loading request details...
@@ -125,7 +161,7 @@ export default function ManagerRequestDetail() {
             <button
               className="secondary-button"
               type="button"
-              onClick={() => navigate("/manager/pending-requests")}
+              onClick={() => navigate(MANAGER_PENDING_PATH)}
             >
               Back to Team Requests
             </button>
@@ -138,9 +174,9 @@ export default function ManagerRequestDetail() {
               <button
                 className="back-button"
                 type="button"
-                onClick={() => navigate("/manager/pending-requests")}
+                onClick={() => navigate(MANAGER_PENDING_PATH)}
               >
-                ← Back
+                Back
               </button>
 
               <div>
@@ -174,6 +210,13 @@ export default function ManagerRequestDetail() {
                     />
                   </div>
                 </section>
+
+                {request.status === REJECTED_STATUS && request.rejectionReason && (
+                  <section className="card rejection-summary-card">
+                    <h2>Rejection Reason</h2>
+                    <p>{request.rejectionReason}</p>
+                  </section>
+                )}
 
                 <section className="card">
                   <h2>Line Items</h2>
@@ -240,16 +283,11 @@ export default function ManagerRequestDetail() {
               <aside className="side-panel">
                 <section className="card actions-card">
                   <h2>Actions</h2>
-                  {actionError && (
-                    <div className="readonly-state error-state" role="alert">
-                      {actionError}
-                    </div>
-                  )}
-
                   <ManagerActions
                     isLocked={request.isLocked}
                     status={request.status}
-                    submitting={submitting}
+                    loadingApprove={loadingApprove}
+                    loadingReject={loadingReject}
                     onApprove={handleApprove}
                     onReject={openRejectModal}
                   />
@@ -262,6 +300,18 @@ export default function ManagerRequestDetail() {
                       <strong>Submitted</strong>
                       <span>{formatDate(request.submittedDate)}</span>
                     </li>
+                    {request.status === PENDING_FINANCE_STATUS && (
+                      <li>
+                        <strong>Approved by Manager</strong>
+                        <span>Forwarded to Finance</span>
+                      </li>
+                    )}
+                    {request.status === REJECTED_STATUS && (
+                      <li>
+                        <strong>Rejected by Manager</strong>
+                        <span>{request.rejectionReason || "Returned to employee"}</span>
+                      </li>
+                    )}
                   </ol>
                 </section>
               </aside>
@@ -274,7 +324,9 @@ export default function ManagerRequestDetail() {
         <div
           className="modal-backdrop"
           role="presentation"
-          onClick={() => setShowRejectModal(false)}
+          onClick={() => {
+            if (!loadingReject) setShowRejectModal(false);
+          }}
         >
           <div
             className="modal reject-reason-modal"
@@ -284,16 +336,25 @@ export default function ManagerRequestDetail() {
             onClick={(event) => event.stopPropagation()}
           >
             <h2 id="reject-request-title">Reject Request</h2>
-            <p>Enter a reason before rejecting this request.</p>
+            <p>
+              Enter a specific reason so the employee understands what needs to
+              be corrected.
+            </p>
 
             <label className="reject-reason-label">
               Reason
               <textarea
                 className="reject-reason-textarea"
+                autoFocus
                 value={rejectReason}
                 onChange={(event) => {
                   setRejectReason(event.target.value);
                   if (rejectReasonError) setRejectReasonError("");
+                }}
+                onBlur={() => {
+                  if (rejectReason && !rejectReason.trim()) {
+                    setRejectReasonError("Rejection reason is required");
+                  }
                 }}
                 placeholder="Enter rejection reason..."
               />
@@ -310,6 +371,7 @@ export default function ManagerRequestDetail() {
                 className="secondary-button"
                 type="button"
                 onClick={() => setShowRejectModal(false)}
+                disabled={loadingReject}
               >
                 Cancel
               </button>
@@ -317,9 +379,15 @@ export default function ManagerRequestDetail() {
                 className="danger-button"
                 type="button"
                 onClick={handleReject}
-                disabled={submitting || !rejectReason.trim()}
+                disabled={loadingReject || !rejectReason.trim()}
               >
-                {submitting ? "Rejecting..." : "Confirm Reject"}
+                {loadingReject ? (
+                  <>
+                    <Spinner /> Rejecting...
+                  </>
+                ) : (
+                  "Confirm Reject"
+                )}
               </button>
             </div>
           </div>
@@ -329,7 +397,16 @@ export default function ManagerRequestDetail() {
   );
 }
 
-function ManagerActions({ isLocked, status, submitting, onApprove, onReject }) {
+function ManagerActions({
+  isLocked,
+  status,
+  loadingApprove,
+  loadingReject,
+  onApprove,
+  onReject,
+}) {
+  const isProcessing = loadingApprove || loadingReject;
+
   if (isLocked || status !== PENDING_MANAGER_STATUS) {
     return (
       <div className="readonly-state">
@@ -345,20 +422,36 @@ function ManagerActions({ isLocked, status, submitting, onApprove, onReject }) {
         className="approve-button"
         type="button"
         onClick={onApprove}
-        disabled={submitting}
+        disabled={isProcessing}
       >
-        {submitting ? "Approving..." : "Approve Request"}
+        {loadingApprove ? (
+          <>
+            <Spinner /> Approving...
+          </>
+        ) : (
+          "Approve Request"
+        )}
       </button>
       <button
         className="danger-button"
         type="button"
         onClick={onReject}
-        disabled={submitting}
+        disabled={isProcessing}
       >
-        Reject Request
+        {loadingReject ? (
+          <>
+            <Spinner /> Rejecting...
+          </>
+        ) : (
+          "Reject Request"
+        )}
       </button>
     </>
   );
+}
+
+function Spinner() {
+  return <span className="button-spinner" aria-hidden="true" />;
 }
 
 function DetailField({ label, value, isStrong = false }) {
@@ -381,6 +474,7 @@ function toManagerDetailViewModel(request) {
 
   return {
     id: formatRequestId(request.id),
+    employeeId: request.employeeId ?? request.employee_id,
     employeeName:
       request.employeeName ??
       request.employee ??
@@ -409,9 +503,20 @@ function toManagerDetailViewModel(request) {
       request.endDate ??
       request.end_date,
     isLocked: Boolean(request.isLocked ?? request.is_locked),
+    rejectionReason:
+      request.rejectionReason ??
+      request.rejection_reason ??
+      extractRejectionReason(request.description),
     lineItems,
     attachments: request.attachments ?? [],
   };
+}
+
+function extractRejectionReason(description) {
+  const prefix = "Rejected:";
+  if (!description?.startsWith(prefix)) return "";
+
+  return description.slice(prefix.length).trim();
 }
 
 function formatRequestId(id) {

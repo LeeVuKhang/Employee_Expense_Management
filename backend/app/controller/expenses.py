@@ -8,8 +8,9 @@ from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from app.core.database import get_session
-from app.middleware import get_current_user_id, require_expense_owner
+from app.middleware import get_current_user_id, require_expense_owner, require_role
 from app.model.expense import ExpenseCategory, ExpenseRequest, RequestStatus
+from app.model.user import UserRole
 from app.schema.expense import ExpenseRequestCreate, ExpenseRequestRead, ExpenseRequestUpdate
 from app.service.attachment_service import parse_attachments, store_attachments
 from app.service.expense_service import (
@@ -20,7 +21,7 @@ from app.service.expense_service import (
     update_expense_request,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_role(UserRole.EMPLOYEE, UserRole.MANAGER))])
 
 
 def _bad_request(message: str) -> HTTPException:
@@ -82,7 +83,7 @@ def _legacy_line_item(raw_item: dict) -> dict:
 async def _payload_from_request(
     request: Request,
     session: Session,
-    x_user_id: int | None,
+    current_user_id: int,
 ) -> tuple[int, ExpenseRequestCreate, list[UploadFile]]:
     content_type = request.headers.get("content-type", "")
 
@@ -105,7 +106,7 @@ async def _payload_from_request(
             "status": RequestStatus.DRAFT if _parse_bool(form.get("isDraft")) else RequestStatus.PENDING_MANAGER,
             "line_items": [_legacy_line_item(item) for item in line_items],
         }
-        employee_id = _parse_employee_id(form.get("employeeId") or form.get("employee_id") or x_user_id)
+        employee_id = current_user_id
         uploads = [
             value
             for value in [*form.getlist("attachments"), *form.getlist("proofs")]
@@ -113,7 +114,7 @@ async def _payload_from_request(
         ]
     else:
         body = await request.json()
-        employee_id = _parse_employee_id(body.get("employeeId") or body.get("employee_id") or x_user_id)
+        employee_id = current_user_id
         payload_data = {
             **body,
             "line_items": [_legacy_line_item(item) for item in body.get("lineItems", [])]
@@ -147,9 +148,13 @@ def list_my_expense_requests(
 async def create_my_expense_request(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
-    x_user_id: Annotated[int | None, Header(alias="X-User-Id")] = None,
+    current_user_id: Annotated[int, Depends(get_current_user_id)],
 ) -> dict:
-    current_user_id, payload, uploads = await _payload_from_request(request, session, x_user_id)
+    current_user_id, payload, uploads = await _payload_from_request(
+        request,
+        session,
+        current_user_id,
+    )
     attachments = await parse_attachments(uploads)
     expense = create_expense_request(session, current_user_id, payload)
     warnings = store_attachments(session, expense.id, attachments) if expense.id is not None else []

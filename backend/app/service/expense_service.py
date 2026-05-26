@@ -59,12 +59,24 @@ def create_expense_request(
     employee_id: int,
     payload: ExpenseRequestCreate,
 ) -> ExpenseRequest:
+    current_processor_id = None
+    if payload.status == RequestStatus.PENDING_MANAGER:
+        current_processor_id = session.exec(
+            select(User.manager_id).where(User.id == employee_id)
+        ).first()
+        if current_processor_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee does not have an assigned manager.",
+            )
+
     expense = ExpenseRequest(
         employee_id=employee_id,
         category_id=payload.category_id,
         start_date=payload.start_date,
         end_date=payload.end_date,
         status=payload.status,
+        current_processor_id=current_processor_id,
         total_amount=_line_items_total(payload.line_items),
     )
     session.add(expense)

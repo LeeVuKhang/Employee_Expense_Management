@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchExpenseRequests } from "../api/expenses";
 
-export function useExpenseRequests(userId = null) {
+export function useExpenseRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -10,17 +10,11 @@ export function useExpenseRequests(userId = null) {
   const refresh = useCallback(async (options = {}) => {
     const { quiet = false } = options;
 
-    if (userId === null) {
-      setRequests([]);
-      setLoading(false);
-      return;
-    }
-
     if (!quiet) setLoading(true);
     setError(null);
 
     try {
-      const normalized = await fetchExpenseRequests(userId);
+      const normalized = await fetchExpenseRequests();
       setRequests(normalized);
     } catch (err) {
       setError(err.message);
@@ -28,23 +22,17 @@ export function useExpenseRequests(userId = null) {
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     let ignore = false;
 
     async function fetchRequests() {
-      if (userId === null) {
-        setRequests([]);
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       setError(null);
 
       try {
-        const normalized = await fetchExpenseRequests(userId);
+        const normalized = await fetchExpenseRequests();
         if (!ignore) setRequests(normalized);
       } catch (err) {
         if (!ignore) {
@@ -58,7 +46,7 @@ export function useExpenseRequests(userId = null) {
 
     fetchRequests();
     return () => { ignore = true; };
-  }, [userId]);
+  }, []);
 
   return { requests, setRequests, loading, error, refresh };
 }

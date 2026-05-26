@@ -872,6 +872,10 @@
 .approve-button,
 .secondary-button,
 .danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 50px;
   padding: 0 18px;
   border-radius: var(--radius-button);
@@ -966,6 +970,24 @@
   background: #f3f6fb;
   color: #455a78;
   font-weight: 700;
+}
+
+.rejection-summary-card {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.rejection-summary-card h2 {
+  margin-bottom: 12px;
+  color: #991b1b;
+}
+
+.rejection-summary-card p {
+  margin: 0;
+  color: #7f1d1d;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
 }
 
 .timeline {
@@ -1866,6 +1888,12 @@ button:focus-visible {
   border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .button-spinner-dark {

@@ -10,6 +10,8 @@ import {
 import { fetchExpenseRequest } from "./api/expenses";
 import Navbar from "./components/layouts/Navbar";
 import ManagerPendingRequestsDashboard from "./components/requests/ManagerPendingRequestsDashboard";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import AccessDenied from "./pages/AccessDenied";
 import ExpenseRequestDetail from "./pages/ExpenseRequestDetail";
 import FinancePage from "./pages/FinancePage";
 import LoginPage from "./pages/LoginPage";
@@ -23,7 +25,6 @@ const NEW_REQUEST_PAGE = "New Request";
 const MY_REQUESTS_PAGE = "My Requests";
 const REQUEST_DETAIL_PAGE = "Request Detail";
 const MANAGER_PENDING_PAGE = "Manager Pending";
-const AUTH_STORAGE_KEY = "eem.auth.user";
 
 function dashboardPathForRole(role) {
   if (role === "Manager") return "/manager/pending-requests";
@@ -31,18 +32,22 @@ function dashboardPathForRole(role) {
   return "/my-requests";
 }
 
-function readStoredUser() {
-  try {
-    const rawUser = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    return rawUser ? JSON.parse(rawUser) : null;
-  } catch {
-    return null;
-  }
-}
+function ProtectedRoute({ children }) {
+  const { user } = useAuth();
 
-function ProtectedRoute({ user, children }) {
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+function RoleProtectedRoute({ allowedRoles, children }) {
+  const { user } = useAuth();
+
+  if (!user) return <Navigate to="/login" replace />;
+  if (!allowedRoles.includes(user.role)) {
+    return <Navigate to="/access-denied" replace />;
   }
 
   return children;
@@ -210,15 +215,18 @@ function ManagerPendingRequestsRoute() {
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(() => readStoredUser());
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
+  );
+}
 
-  function handleLogin(user) {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    setCurrentUser(user);
-  }
-
-  const protect = (children) => (
-    <ProtectedRoute user={currentUser}>{children}</ProtectedRoute>
+function AppRoutes() {
+  const { user } = useAuth();
+  const protect = (children) => <ProtectedRoute>{children}</ProtectedRoute>;
+  const protectRole = (allowedRoles, children) => (
+    <RoleProtectedRoute allowedRoles={allowedRoles}>{children}</RoleProtectedRoute>
   );
 
   return (
@@ -227,7 +235,7 @@ export default function App() {
         path="/"
         element={
           <Navigate
-            to={currentUser ? dashboardPathForRole(currentUser.role) : "/login"}
+            to={user ? dashboardPathForRole(user.role) : "/login"}
             replace
           />
         }
@@ -235,36 +243,52 @@ export default function App() {
       <Route
         path="/login"
         element={
-          currentUser ? (
-            <Navigate to={dashboardPathForRole(currentUser.role)} replace />
+          user ? (
+            <Navigate to={dashboardPathForRole(user.role)} replace />
           ) : (
-            <LoginPage onLogin={handleLogin} />
+            <LoginPage />
           )
         }
       />
-      <Route path="/my-requests" element={protect(<MyRequestsRoute />)} />
-      <Route path="/new-request" element={protect(<NewExpenseRequestRoute />)} />
-      <Route path="/requests/:requestId" element={protect(<ExpenseRequestDetailRoute />)} />
-      <Route path="/requests/:requestId/edit" element={protect(<NewExpenseRequestRoute editMode />)} />
-      <Route path="/finance" element={protect(<FinancePage />)} />
-      <Route path="/finance/request/:id" element={protect(<RequestDetailPage />)} />
+      <Route path="/access-denied" element={protect(<AccessDenied />)} />
+      <Route
+        path="/my-requests"
+        element={protectRole(["Employee", "Manager"], <MyRequestsRoute />)}
+      />
+      <Route
+        path="/new-request"
+        element={protectRole(["Employee", "Manager"], <NewExpenseRequestRoute />)}
+      />
+      <Route
+        path="/requests/:requestId"
+        element={protectRole(["Employee", "Manager"], <ExpenseRequestDetailRoute />)}
+      />
+      <Route
+        path="/requests/:requestId/edit"
+        element={protectRole(["Employee", "Manager"], <NewExpenseRequestRoute editMode />)}
+      />
+      <Route path="/finance" element={protectRole(["Finance"], <FinancePage />)} />
+      <Route
+        path="/finance/request/:id"
+        element={protectRole(["Finance"], <RequestDetailPage />)}
+      />
       <Route
         path="/manager"
-        element={protect(<Navigate to="/manager/pending-requests" replace />)}
+        element={protectRole(["Manager"], <Navigate to="/manager/pending-requests" replace />)}
       />
       <Route
         path="/manager/pending-requests"
-        element={protect(<ManagerPendingRequestsRoute />)}
+        element={protectRole(["Manager"], <ManagerPendingRequestsRoute />)}
       />
       <Route
         path="/manager/requests/:requestId"
-        element={protect(<ManagerRequestDetail />)}
+        element={protectRole(["Manager"], <ManagerRequestDetail />)}
       />
       <Route
         path="*"
         element={
           <Navigate
-            to={currentUser ? dashboardPathForRole(currentUser.role) : "/login"}
+            to={user ? dashboardPathForRole(user.role) : "/login"}
             replace
           />
         }
