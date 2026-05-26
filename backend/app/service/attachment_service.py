@@ -129,6 +129,36 @@ def store_attachments(
     return warnings
 
 
+def get_presigned_url(bucket_name: str, object_key: str, expiration_seconds: int = 3600) -> str:
+    """Generates a temporary presigned URL for a private S3 object.
+
+    Returns an empty string if AWS is not configured.
+    """
+    if not (
+        settings.aws_access_key_id
+        and settings.aws_secret_access_key
+        and bucket_name
+    ):
+        return ""
+
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+        region_name=settings.aws_region,
+    )
+
+    try:
+        url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket_name, "Key": object_key},
+            ExpiresIn=expiration_seconds,
+        )
+        return url
+    except Exception:
+        return ""
+
+
 def get_attachment_download_url(attachment: Attachment) -> str:
     if not _s3_configured():
         raise HTTPException(

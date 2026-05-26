@@ -111,11 +111,17 @@ export default function ExpenseRequestDetail({
 
     loadRequest();
 
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, [initialRequest, requestId]);
 
   const total = useMemo(
-    () => request?.lineItems.reduce((sum, lineItem) => sum + Number(lineItem.amount || 0), 0) ?? 0,
+    () =>
+      request?.lineItems.reduce(
+        (sum, lineItem) => sum + Number(lineItem.amount || 0),
+        0,
+      ) ?? 0,
     [request],
   );
 
@@ -138,7 +144,10 @@ export default function ExpenseRequestDetail({
 
     try {
       const duplicatedRequest = await duplicateExpenseRequest(nextRequest.id);
-      showNotice("success", `Request ${formatRequestId(nextRequest.id)} was duplicated.`);
+      showNotice(
+        "success",
+        `Request ${formatRequestId(nextRequest.id)} was duplicated.`,
+      );
       onNavigate?.("Request Detail", { request: duplicatedRequest });
     } catch (err) {
       showNotice("error", err.message);
@@ -156,7 +165,10 @@ export default function ExpenseRequestDetail({
     try {
       const cancelledRequest = await cancelExpenseRequest(cancelTarget.id);
       setRequest(cancelledRequest);
-      showNotice("success", `Request ${formatRequestId(cancelTarget.id)} was cancelled.`);
+      showNotice(
+        "success",
+        `Request ${formatRequestId(cancelTarget.id)} was cancelled.`,
+      );
     } catch (err) {
       showNotice("error", err.message);
     } finally {
@@ -223,7 +235,8 @@ export default function ExpenseRequestDetail({
               <div>
                 <h1>{formatRequestId(request.id)}</h1>
                 <p>
-                  Submitted by {request.employee} on {formatDate(request.submittedOn)}
+                  Submitted by {request.employee} on{" "}
+                  {formatDate(request.submittedOn)}
                 </p>
               </div>
 
@@ -243,7 +256,10 @@ export default function ExpenseRequestDetail({
                       value={`${request.tripStart} to ${request.tripEnd}`}
                     />
                     <FieldValue label="Status" value={request.status} />
-                    <FieldValue label="Total Amount" value={formatCurrency(total)} />
+                    <FieldValue
+                      label="Total Amount"
+                      value={formatCurrency(total)}
+                    />
                   </div>
                 </div>
 
@@ -254,7 +270,9 @@ export default function ExpenseRequestDetail({
 
                 <div className="card">
                   <h2>Attachments</h2>
-                  <p className="muted">Receipts and invoices for this request.</p>
+                  <p className="muted">
+                    Receipts and invoices for this request.
+                  </p>
                   <div className="attachment-box">
                     {request.attachments.length ? (
                       request.attachments.map((attachment) => (
@@ -265,7 +283,7 @@ export default function ExpenseRequestDetail({
                           onClick={() => openAttachment(attachment)}
                           type="button"
                         >
-                          {attachment.fileName}
+                          {attachment.fileName ?? attachment.name}
                         </button>
                       ))
                     ) : (

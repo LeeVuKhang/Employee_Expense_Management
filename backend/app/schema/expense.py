@@ -29,9 +29,13 @@ class ExpenseLineItemRead(ExpenseLineItemBase):
 
 class AttachmentRead(BaseModel):
     id: int
+    expense_request_id: int | None = None
     file_name: str
-    content_type: str | None
-    file_size_bytes: int
+    file_url: str | None = None
+    s3_bucket: str | None = None
+    s3_key: str | None = None
+    content_type: str | None = None
+    file_size_bytes: int | None = None
     uploaded_at: datetime | None
 
 

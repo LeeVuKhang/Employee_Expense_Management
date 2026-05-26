@@ -11,6 +11,7 @@ from app.model.expense import (
     RequestHistory,
     RequestStatus,
 )
+from app.service.attachment_service import get_presigned_url
 from app.model.user import User
 from app.schema.expense import ExpenseLineItemCreate, ExpenseRequestCreate, ExpenseRequestUpdate
 
@@ -220,13 +221,16 @@ def to_expense_read(
     }
     if include_attachments:
         response["attachments"] = [
-            {
-                "id": attachment.id,
-                "file_name": attachment.file_name,
-                "content_type": attachment.content_type,
-                "file_size_bytes": attachment.file_size_bytes,
-                "uploaded_at": attachment.uploaded_at,
-            }
+            _attachment_read_model(attachment)
             for attachment in _get_attachments(session, expense.id)
         ]
     return response
+
+
+def _attachment_read_model(attachment: Attachment) -> dict:
+    attachment_data = attachment.model_dump()
+    if attachment.s3_bucket and attachment.s3_key:
+        presigned_url = get_presigned_url(attachment.s3_bucket, attachment.s3_key)
+        if presigned_url:
+            attachment_data["file_url"] = presigned_url
+    return attachment_data
