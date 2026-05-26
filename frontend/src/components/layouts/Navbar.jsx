@@ -1,4 +1,5 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
 
 const ROLE_NAV_ITEMS = {
   Employee: [
@@ -13,27 +14,26 @@ const ROLE_NAV_ITEMS = {
   ],
 };
 
-function inferRole(activePage, navItems) {
-  const labels = [activePage, ...(navItems ?? []).map((item) => item.label)].join(" ");
-
-  if (/finance/i.test(labels)) return "Finance";
-  if (/manager|team requests/i.test(labels)) return "Manager";
-  return "Employee";
+function dashboardForRole(role) {
+  if (role === "Manager") return "/manager/pending-requests";
+  if (role === "Finance") return "/finance";
+  return "/my-requests";
 }
 
 export default function Navbar({
   activePage = "My Requests",
   navItems,
   onNavigate,
-  role,
 }) {
-  const currentRole = role ?? inferRole(activePage, navItems);
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const currentRole = user?.role ?? "Employee";
   const items = navItems ?? ROLE_NAV_ITEMS[currentRole] ?? ROLE_NAV_ITEMS.Employee;
 
   return (
     <header className="navbar">
       <div className="navbar-left">
-        <NavLink className="navbar-brand" to="/my-requests">
+        <NavLink className="navbar-brand" to={dashboardForRole(currentRole)}>
           <span className="navbar-logo">E</span>
           <span className="navbar-brand-text">Expensify</span>
         </NavLink>
@@ -62,10 +62,17 @@ export default function Navbar({
 
       <div className="navbar-user">
         <div className="navbar-role" aria-label="Current role">
-          <span className="navbar-role-name">{currentRole}</span>
-          <span className="navbar-role-label">Active Role</span>
+          <span className="navbar-role-name">{user?.full_name ?? currentRole}</span>
+          <span className="navbar-role-label">{currentRole}</span>
         </div>
-        <button className="navbar-logout" type="button">
+        <button
+          className="navbar-logout"
+          type="button"
+          onClick={() => {
+            logout();
+            navigate("/login", { replace: true });
+          }}
+        >
           Logout
         </button>
       </div>

@@ -10,6 +10,7 @@ from app.core.database import get_session
 from app.main import app
 from app.model.expense import ExpenseCategory, ExpenseLineItem, ExpenseRequest, RequestStatus
 from app.model.user import User, UserRole
+from app.service.auth_service import create_access_token
 
 
 class ExpenseRequestActionsTest(unittest.TestCase):
@@ -33,10 +34,20 @@ class ExpenseRequestActionsTest(unittest.TestCase):
         app.dependency_overrides.clear()
         self.engine.dispose()
 
+    def _auth_headers(self, user_id: int, role: UserRole = UserRole.EMPLOYEE) -> dict[str, str]:
+        token = create_access_token(
+            {
+                "sub": str(user_id),
+                "role": role.value,
+                "email": "employee.one@example.com",
+            }
+        )
+        return {"Authorization": f"Bearer {token}"}
+
     def test_block_edit_on_locked_request(self) -> None:
         response = self.client.put(
             "/api/expenses/1",
-            headers={"X-User-Id": "4"},
+            headers=self._auth_headers(4),
             json={"category_id": 1},
         )
 
@@ -49,7 +60,7 @@ class ExpenseRequestActionsTest(unittest.TestCase):
     def test_duplicate_request(self) -> None:
         response = self.client.post(
             "/api/expenses/2/duplicate",
-            headers={"X-User-Id": "4"},
+            headers=self._auth_headers(4),
         )
 
         self.assertEqual(response.status_code, 201)
@@ -61,14 +72,50 @@ class ExpenseRequestActionsTest(unittest.TestCase):
         self.assertEqual(len(body["line_items"]), 1)
         self.assertEqual(body["line_items"][0]["item_service_name"], "Taxi")
 
+    def test_submitted_request_is_assigned_to_employee_manager(self) -> None:
+        response = self.client.post(
+            "/api/expenses",
+            headers=self._auth_headers(4),
+            json={
+                "category_id": 1,
+                "start_date": "2026-05-12",
+                "end_date": "2026-05-12",
+                "status": "Pending Manager",
+                "line_items": [
+                    {
+                        "expense_date": "2026-05-12",
+                        "item_service_name": "Lunch",
+                        "amount": "12.00",
+                        "purpose_note": "Team lunch",
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["status"], "Pending Manager")
+        self.assertEqual(body["current_processor_id"], 3)
+
     def _seed_data(self) -> None:
         with Session(self.engine) as session:
+            session.add(
+                User(
+                    id=3,
+                    full_name="Manager One",
+                    email="manager.one@example.com",
+                    password_hash="not-used",
+                    role=UserRole.MANAGER,
+                )
+            )
             session.add(
                 User(
                     id=4,
                     full_name="Employee One",
                     email="employee.one@example.com",
+                    password_hash="not-used",
                     role=UserRole.EMPLOYEE,
+                    manager_id=3,
                 )
             )
             session.add(ExpenseCategory(id=1, name="Travel"))
