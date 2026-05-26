@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { createExpenseRequest, updateExpenseRequest } from "../api/expenses";
+import { getAuthToken } from "../contexts/AuthContext";
 import Navbar from "../components/layouts/Navbar";
 
 const MAX_FILES = 3;
@@ -326,12 +327,19 @@ export default function NewExpenseRequest({
     try {
       const form = new FormData();
       form.append("file", file);
+      const token = getAuthToken();
       const res = await fetch(`/api/expenses/scan`, {
         method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: form,
       });
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        addToast("Failed to scan receipt. Please try again.", "error");
+        return;
+      }
 
       const body = await res.json();
       if (body.date) {
@@ -365,8 +373,9 @@ export default function NewExpenseRequest({
         }
         setCategoryId(body.category_id);
       }
-    } catch {
-      // Best-effort; silently ignore scan failures
+      addToast("Receipt scanned successfully!", "success");
+    } catch (err) {
+      addToast("Error scanning receipt: " + (err?.message || "Unknown error"), "error");
     } finally {
       setIsScanning(false);
     }
@@ -391,10 +400,6 @@ export default function NewExpenseRequest({
     setAttachments((current) => {
       const slots = MAX_FILES - current.length;
       const chosen = valid.slice(0, slots);
-      if (chosen.length > 0) {
-        // Kick off a best-effort scan of the first selected receipt
-        handleReceiptScan(chosen[0]);
-      }
       return [...current, ...chosen];
     });
   }
@@ -726,13 +731,24 @@ export default function NewExpenseRequest({
                         <strong>{file.name}</strong>
                       </div>
                       <span>{(file.size / 1024).toFixed(0)} KB</span>
-                      <button
-                        className="remove-file-button"
-                        onClick={() => removeAttachment(index)}
-                        type="button"
-                      >
-                        Remove
-                      </button>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          className="secondary-button"
+                          onClick={() => handleReceiptScan(file)}
+                          type="button"
+                          disabled={isScanning}
+                          style={{ padding: "6px 12px", fontSize: "0.9rem" }}
+                        >
+                          {isScanning ? "Scanning..." : "Scan Receipt"}
+                        </button>
+                        <button
+                          className="remove-file-button"
+                          onClick={() => removeAttachment(index)}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
