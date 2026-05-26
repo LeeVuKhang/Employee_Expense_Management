@@ -17,8 +17,8 @@ from app.service.manager_dashboard_service import (
     get_pending_requests_summary_for_manager,
     list_pending_requests_for_manager,
     require_manager,
-    update_manager_request_status as update_manager_request_status_service,
 )
+from app.service.notification_service import queue_status_change_notification
 from app.service.expense_service import to_expense_read
 
 router = APIRouter()
@@ -132,14 +132,26 @@ def update_manager_expense_request_status(
     expense.status = payload.status
     expense.is_locked = True
     expense.rejection_reason = rejection_reason
+    action_taken = "Rejected"
     if payload.status == RequestStatus.PENDING_FINANCE:
         expense.current_processor_id = _get_finance_processor_id(session)
+        action_taken = "Approved"
+    else:
+        expense.current_processor_id = expense.employee_id
+
+    queue_status_change_notification(
+        session=session,
+        expense=expense,
+        new_status=payload.status,
+        actor_role="Manager",
+        rejection_reason=rejection_reason,
+    )
 
     session.add(
         RequestHistory(
             expense_request_id=expense.id,
             actor_id=manager.id,
-            action_taken=payload.status.value,
+            action_taken=action_taken,
             comments=rejection_reason,
         )
     )
