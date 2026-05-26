@@ -20,6 +20,24 @@ ALLOWED_ATTACHMENT_TYPES = {
 }
 
 
+def _s3_configured() -> bool:
+    return bool(
+        settings.aws_access_key_id
+        and settings.aws_secret_access_key
+        and settings.aws_region
+        and settings.s3_bucket
+    )
+
+
+def _s3_client():
+    return boto3.client(
+        "s3",
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+        region_name=settings.aws_region,
+    )
+
+
 @dataclass(frozen=True)
 class PendingAttachment:
     filename: str
@@ -40,24 +58,27 @@ async def parse_attachments(files: list[UploadFile]) -> list[PendingAttachment]:
 
     attachments: list[PendingAttachment] = []
     for upload in files:
-        content_type = upload.content_type
-        if content_type not in ALLOWED_ATTACHMENT_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file type. Only SVG, JPG, PNG, and PDF are allowed.",
-            )
+        try:
+            content_type = upload.content_type
+            if content_type not in ALLOWED_ATTACHMENT_TYPES:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid file type. Only SVG, JPG, PNG, and PDF are allowed.",
+                )
 
-        content = await upload.read()
-        if len(content) > MAX_ATTACHMENT_SIZE_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Each attachment must be 10MB or smaller.",
-            )
+            content = await upload.read()
+            if len(content) > MAX_ATTACHMENT_SIZE_BYTES:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Each attachment must be 10MB or smaller.",
+                )
 
-        filename = PurePath(upload.filename or "attachment").name
-        attachments.append(
-            PendingAttachment(filename=filename, content_type=content_type, content=content)
-        )
+            filename = PurePath(upload.filename or "attachment").name
+            attachments.append(
+                PendingAttachment(filename=filename, content_type=content_type, content=content)
+            )
+        finally:
+            await upload.close()
 
     return attachments
 
@@ -70,23 +91,13 @@ def store_attachments(
     if not attachments:
         return []
 
-    if not (
-        settings.aws_access_key_id
-        and settings.aws_secret_access_key
-        and settings.aws_region
-        and settings.s3_bucket
-    ):
+    if not _s3_configured():
         return [
             f"Skipped {attachment.filename}: AWS S3 is not configured."
             for attachment in attachments
         ]
 
-    s3 = boto3.client(
-        "s3",
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-        region_name=settings.aws_region,
-    )
+    s3 = _s3_client()
     warnings: list[str] = []
 
     for attachment in attachments:
@@ -116,3 +127,23 @@ def store_attachments(
 
     session.commit()
     return warnings
+
+
+def get_attachment_download_url(attachment: Attachment) -> str:
+    if not _s3_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Attachment storage is not configured.",
+        )
+
+    try:
+        return _s3_client().generate_presigned_url(
+            "get_object",
+            Params={"Bucket": attachment.s3_bucket, "Key": attachment.s3_key},
+            ExpiresIn=300,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to access attachment.",
+        ) from exc
